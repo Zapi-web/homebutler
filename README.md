@@ -42,23 +42,7 @@ A single-binary CLI that lets you monitor servers, control Docker, wake machines
 
 ## Demo
 
-<p align="center">
-  <img src="demo-telegram.jpg" alt="Telegram chat demo" width="400">
-</p>
-
-<details>
-<summary>📺 CLI demo</summary>
-
-![homebutler demo](demo.gif)
-
-</details>
-
-<details>
-<summary>💬 Chat integration demo</summary>
-
-![homebutler chat demo](demo-chat.gif)
-
-</details>
+<img alt="homebutler demo" width="600" src="demo.gif">
 
 ## Quick Start
 
