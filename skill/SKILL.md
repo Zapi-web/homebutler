@@ -15,8 +15,17 @@ Manage homelab servers using the `homebutler` CLI. Single binary, JSON output, A
 # Check if installed
 which homebutler
 
-# If not, build from source
-cd workspace/projects/homebutler && make build && sudo cp homebutler /usr/local/bin/
+# Option 1: Download pre-built binary (recommended)
+# See https://github.com/Higangssh/homebutler/releases
+curl -fsSL https://github.com/Higangssh/homebutler/releases/latest/download/homebutler_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m).tar.gz | tar xz
+sudo mv homebutler /usr/local/bin/
+
+# Option 2: Install via Go
+go install github.com/Higangssh/homebutler@latest
+
+# Option 3: Build from source
+git clone https://github.com/Higangssh/homebutler.git
+cd homebutler && make build && sudo mv homebutler /usr/local/bin/
 ```
 
 ## Commands
