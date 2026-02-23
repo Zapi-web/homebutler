@@ -3,11 +3,11 @@
 
 # Servers to manage
 servers:
-  - name: mac-mini
+  - name: main-server
     host: 192.168.1.10
     local: true           # This is the machine running homebutler
 
-  - name: rpi5
+  - name: rpi
     host: 192.168.1.20
     user: pi
     auth: key             # "key" (default, recommended) or "password"
@@ -16,7 +16,7 @@ servers:
 
   # Password auth example (not recommended):
   # - name: old-server
-  #   host: 192.168.0.10
+  #   host: 192.168.1.30
   #   user: admin
   #   auth: password
   #   password: "your-password"
@@ -25,7 +25,7 @@ servers:
 wake:
   # - name: desktop
   #   mac: "AA:BB:CC:DD:EE:FF"
-  #   ip: "192.168.0.255"  # broadcast address (optional)
+  #   ip: "192.168.1.255"  # broadcast address (optional)
 
 # Alert thresholds
 alerts:

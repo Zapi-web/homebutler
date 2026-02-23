@@ -129,8 +129,17 @@ func TestResolveNone(t *testing.T) {
 	os.Chdir(t.TempDir())
 
 	result := Resolve("")
-	if result != "" {
-		t.Errorf("expected empty string, got %q", result)
+	// If XDG config exists on this machine, it will be found — that's OK
+	home, _ := os.UserHomeDir()
+	xdg := filepath.Join(home, ".config", "homebutler", "config.yaml")
+	if _, err := os.Stat(xdg); err == nil {
+		if result != xdg {
+			t.Errorf("expected XDG path %s, got %q", xdg, result)
+		}
+	} else {
+		if result != "" {
+			t.Errorf("expected empty string, got %q", result)
+		}
 	}
 }
 

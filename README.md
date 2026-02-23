@@ -127,22 +127,22 @@ Manage multiple servers from a single machine. homebutler connects via SSH and r
 
 ```bash
 # From a machine with internet access:
-homebutler deploy --server rpi5
+homebutler deploy --server rpi
 
 # Air-gapped / offline environments:
 CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -o homebutler-linux-arm64
-homebutler deploy --server rpi5 --local ./homebutler-linux-arm64
+homebutler deploy --server rpi --local ./homebutler-linux-arm64
 ```
 
 2. Configure servers in your config file:
 
 ```yaml
 servers:
-  - name: mac-mini
+  - name: main-server
     host: 192.168.1.10
     local: true              # This machine
 
-  - name: rpi5
+  - name: rpi
     host: 192.168.1.20
     user: pi
     auth: key                # Recommended (default)
@@ -153,7 +153,7 @@ servers:
     user: deploy
     port: 2222
     auth: password           # Also supported
-    password: "secret"
+    password: "your-password"
 ```
 
 ### SSH Authentication
@@ -174,16 +174,16 @@ ssh-copy-id user@remote-host
 
 ```bash
 # Query a specific server
-homebutler status --server rpi5
-homebutler alerts --server rpi5
-homebutler docker list --server rpi5
+homebutler status --server rpi
+homebutler alerts --server rpi
+homebutler docker list --server rpi
 
 # Query all servers in parallel
 homebutler status --all
 homebutler alerts --all
 
 # Deploy/update homebutler on remote servers
-homebutler deploy --server rpi5
+homebutler deploy --server rpi
 homebutler deploy --all
 ```
 

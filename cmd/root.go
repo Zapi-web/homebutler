@@ -265,6 +265,13 @@ func runLocalCommand(args []string) ([]byte, error) {
 	}
 }
 
+// valueFlags are flags that take a value argument.
+var valueFlags = map[string]bool{
+	"--server": true,
+	"--config": true,
+	"--local":  true,
+}
+
 func filterFlags(args []string, flags ...string) []string {
 	skip := make(map[string]bool)
 	for _, f := range flags {
@@ -278,7 +285,9 @@ func filterFlags(args []string, flags ...string) []string {
 			continue
 		}
 		if skip[arg] {
-			skipNext = true // skip the flag's value
+			if valueFlags[arg] {
+				skipNext = true // skip the flag's value too
+			}
 			continue
 		}
 		filtered = append(filtered, arg)
