@@ -21,6 +21,11 @@ A single-binary CLI that lets you monitor servers, control Docker, wake machines
 
 ## Why homebutler?
 
+> Other tools give you dashboards. homebutler gives you a **conversation**.
+
+<details>
+<summary>📊 Comparison with alternatives</summary>
+
 | | homebutler | Glances/btop | Netdata | CasaOS |
 |---|---|---|---|---|
 | Single binary | ✅ | ❌ | ❌ | ❌ |
@@ -33,15 +38,27 @@ A single-binary CLI that lets you monitor servers, control Docker, wake machines
 | Air-gapped install | ✅ Copy binary | ❌ pip/npm | ❌ Docker | ❌ Docker |
 | Resource usage | ~3MB, 0% idle | Medium | High | High |
 
-**TL;DR:** Other tools give you dashboards. homebutler gives you a **conversation**.
+</details>
 
 ## Demo
 
-### Chat with your homelab
+<p align="center">
+  <img src="demo-telegram.jpg" alt="Telegram chat demo" width="400">
+</p>
+
+<details>
+<summary>📺 CLI demo</summary>
+
+![homebutler demo](demo.gif)
+
+</details>
+
+<details>
+<summary>💬 Chat integration demo</summary>
+
 ![homebutler chat demo](demo-chat.gif)
 
-### CLI usage
-![homebutler demo](demo.gif)
+</details>
 
 ## Quick Start
 
