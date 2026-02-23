@@ -4,9 +4,9 @@
 
 # homebutler 🏠
 
-A single-binary CLI to manage your entire homelab. Designed to work standalone or as an AI assistant skill (OpenClaw, etc).
+**Manage your homelab from Telegram. One binary. Zero dependencies.**
 
-> Manage your homelab from chat. One binary. No dependencies.
+A single-binary CLI that lets you monitor servers, control Docker, wake machines, and scan your network — directly from chat. Built for AI assistants, works great standalone.
 
 ## Features
 
@@ -19,8 +19,28 @@ A single-binary CLI to manage your entire homelab. Designed to work standalone o
 - **Multi-server** *(planned)* — Manage remote servers over SSH
 - **JSON Output** — Pipe-friendly, perfect for AI assistants to parse
 
+## Why homebutler?
+
+| | homebutler | Glances/btop | Netdata | CasaOS |
+|---|---|---|---|---|
+| Single binary | ✅ | ❌ | ❌ | ❌ |
+| No web server | ✅ | ❌ | ❌ | ❌ |
+| Chat integration | ✅ Native | ❌ | ❌ | ❌ |
+| AI-friendly JSON | ✅ | ❌ | ⚠️ API | ⚠️ API |
+| Docker control | ✅ | ❌ | ❌ | ✅ |
+| Wake-on-LAN | ✅ | ❌ | ❌ | ❌ |
+| Network scan | ✅ | ❌ | ❌ | ❌ |
+| Air-gapped install | ✅ Copy binary | ❌ pip/npm | ❌ Docker | ❌ Docker |
+| Resource usage | ~3MB, 0% idle | Medium | High | High |
+
+**TL;DR:** Other tools give you dashboards. homebutler gives you a **conversation**.
+
 ## Demo
 
+### Chat with your homelab
+![homebutler chat demo](demo-chat.gif)
+
+### CLI usage
 ![homebutler demo](demo.gif)
 
 ## Quick Start
