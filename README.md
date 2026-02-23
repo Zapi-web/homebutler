@@ -42,7 +42,10 @@ A single-binary CLI that lets you monitor servers, control Docker, wake machines
 
 ## Demo
 
-<img alt="homebutler demo" width="600" src="demo.gif">
+<p>
+  <img alt="CLI demo" width="49%" src="demo.gif">
+  <img alt="Chat demo" width="49%" src="demo-chat.gif">
+</p>
 
 ## Quick Start
 
