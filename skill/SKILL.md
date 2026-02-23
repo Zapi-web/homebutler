@@ -23,10 +23,8 @@ Manage homelab servers using the `homebutler` CLI. Single binary, JSON output, A
 # Check if installed
 which homebutler
 
-# Option 1: Download pre-built binary (recommended)
-# See https://github.com/Higangssh/homebutler/releases
-curl -fsSL https://github.com/Higangssh/homebutler/releases/latest/download/homebutler_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m).tar.gz | tar xz
-sudo mv homebutler /usr/local/bin/
+# Option 1: One-line install (recommended)
+curl -fsSL https://raw.githubusercontent.com/Higangssh/homebutler/main/install.sh | sh
 
 # Option 2: Install via Go
 go install github.com/Higangssh/homebutler@latest
@@ -95,6 +93,7 @@ homebutler deploy --server rpi --local ./homebutler     # Air-gapped: copy local
 homebutler deploy --all                                 # Deploy to all remote servers
 ```
 Installs homebutler on remote servers via SSH. Auto-detects remote OS/architecture.
+Install path priority: `/usr/local/bin` → `sudo /usr/local/bin` → `~/.local/bin` (with PATH auto-registration in .profile/.bashrc/.zshrc).
 
 ### Version
 ```bash
@@ -153,6 +152,15 @@ servers:
 7. **Network scan** — warn user it may take ~30 seconds
 8. **Security** — never expose raw JSON with hostnames/IPs in group chats, summarize instead
 9. **Deploy** — suggest `--local` for air-gapped environments
+
+## Error Handling
+
+- **SSH connection failed** → Check host/port/user in config, verify SSH key is registered on remote
+- **homebutler not found on remote** → Run `homebutler deploy --server <name>` first
+- **docker not installed** → Tell user docker is not available on that server
+- **docker daemon not running** → Suggest `sudo systemctl start docker`
+- **network scan timeout** → Normal on large subnets, suggest retrying
+- **permission denied** → May need sudo for ports/docker commands on some systems
 
 ## Example Interactions
 
