@@ -16,9 +16,15 @@ type Config struct {
 }
 
 type ServerConfig struct {
-	Name string `yaml:"name"`
-	Host string `yaml:"host"`
-	SSH  string `yaml:"ssh,omitempty"`
+	Name     string `yaml:"name"`
+	Host     string `yaml:"host"`
+	Local    bool   `yaml:"local,omitempty"`
+	User     string `yaml:"user,omitempty"`
+	Port     int    `yaml:"port,omitempty"`
+	KeyFile  string `yaml:"key,omitempty"`
+	Password string `yaml:"password,omitempty"`
+	AuthMode string `yaml:"auth,omitempty"` // "key" (default) or "password"
+	BinPath  string `yaml:"bin,omitempty"`  // remote homebutler path (default: homebutler)
 }
 
 type WakeTarget struct {
@@ -82,6 +88,45 @@ func Load(path string) (*Config, error) {
 	}
 
 	return cfg, nil
+}
+
+// FindServer returns the server config by name, or nil if not found.
+func (c *Config) FindServer(name string) *ServerConfig {
+	for i := range c.Servers {
+		if c.Servers[i].Name == name {
+			return &c.Servers[i]
+		}
+	}
+	return nil
+}
+
+// SSHPort returns the configured port or default 22.
+func (s *ServerConfig) SSHPort() int {
+	if s.Port > 0 {
+		return s.Port
+	}
+	return 22
+}
+
+// SSHUser returns the configured user or default "root".
+func (s *ServerConfig) SSHUser() string {
+	if s.User != "" {
+		return s.User
+	}
+	return "root"
+}
+
+// UseKeyAuth returns true if key-based auth should be used (default).
+func (s *ServerConfig) UseKeyAuth() bool {
+	return s.AuthMode != "password"
+}
+
+// SSHBinPath returns the remote homebutler binary path.
+func (s *ServerConfig) SSHBinPath() string {
+	if s.BinPath != "" {
+		return s.BinPath
+	}
+	return "homebutler"
 }
 
 func (c *Config) FindWakeTarget(name string) *WakeTarget {

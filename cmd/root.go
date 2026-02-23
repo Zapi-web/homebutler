@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/Higangssh/homebutler/internal/alerts"
@@ -11,6 +12,7 @@ import (
 	"github.com/Higangssh/homebutler/internal/docker"
 	"github.com/Higangssh/homebutler/internal/network"
 	"github.com/Higangssh/homebutler/internal/ports"
+	"github.com/Higangssh/homebutler/internal/remote"
 	"github.com/Higangssh/homebutler/internal/system"
 	"github.com/Higangssh/homebutler/internal/wake"
 )
@@ -29,6 +31,29 @@ func Execute(version, buildDate string) error {
 	}
 
 	jsonOutput := hasFlag("--json")
+	serverName := getFlag("--server", "")
+	allServers := hasFlag("--all")
+
+	// Multi-server: route to remote execution
+	if allServers {
+		return runAllServers(cfg, os.Args[1:])
+	}
+	if serverName != "" {
+		server := cfg.FindServer(serverName)
+		if server == nil {
+			return fmt.Errorf("server %q not found in config. Available servers: %s", serverName, listServerNames(cfg))
+		}
+		if !server.Local {
+			remoteArgs := filterFlags(os.Args[1:], "--server", "--all")
+			out, err := remote.Run(server, remoteArgs...)
+			if err != nil {
+				return err
+			}
+			fmt.Print(string(out))
+			return nil
+		}
+		// Local server — fall through to normal execution
+	}
 
 	switch os.Args[1] {
 	case "status":
@@ -148,6 +173,127 @@ func runAlerts(cfg *config.Config, jsonOut bool) error {
 	return output(result, jsonOut)
 }
 
+// serverResult holds the result from a single server.
+type serverResult struct {
+	Server string          `json:"server"`
+	Data   json.RawMessage `json:"data,omitempty"`
+	Error  string          `json:"error,omitempty"`
+}
+
+// runAllServers executes a command on all configured servers in parallel.
+func runAllServers(cfg *config.Config, args []string) error {
+	if len(cfg.Servers) == 0 {
+		return fmt.Errorf("no servers configured. Add servers to your config file")
+	}
+
+	remoteArgs := filterFlags(args, "--server", "--all")
+	results := make([]serverResult, len(cfg.Servers))
+	var wg sync.WaitGroup
+
+	for i, srv := range cfg.Servers {
+		wg.Add(1)
+		go func(idx int, server config.ServerConfig) {
+			defer wg.Done()
+			result := serverResult{Server: server.Name}
+
+			if server.Local {
+				// Run locally
+				out, err := runLocalCommand(remoteArgs)
+				if err != nil {
+					result.Error = err.Error()
+				} else {
+					result.Data = json.RawMessage(out)
+				}
+			} else {
+				out, err := remote.Run(&server, remoteArgs...)
+				if err != nil {
+					result.Error = err.Error()
+				} else {
+					result.Data = json.RawMessage(out)
+				}
+			}
+
+			results[idx] = result
+		}(i, srv)
+	}
+
+	wg.Wait()
+	return output(results, true)
+}
+
+// runLocalCommand runs homebutler locally and captures JSON output.
+func runLocalCommand(args []string) ([]byte, error) {
+	if len(args) == 0 {
+		return nil, fmt.Errorf("no command specified")
+	}
+
+	switch args[0] {
+	case "status":
+		info, err := system.Status()
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(info)
+	case "alerts":
+		// Use default alert config for local
+		alertCfg := &config.AlertConfig{CPU: 90, Memory: 85, Disk: 90}
+		result, err := alerts.Check(alertCfg)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(result)
+	case "docker":
+		if len(args) < 2 || (args[1] != "list" && args[1] != "ls") {
+			return nil, fmt.Errorf("only 'docker list' supported with --all")
+		}
+		containers, err := docker.List()
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(containers)
+	case "ports":
+		openPorts, err := ports.List()
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(openPorts)
+	default:
+		return nil, fmt.Errorf("command %q not supported with --all", args[0])
+	}
+}
+
+func filterFlags(args []string, flags ...string) []string {
+	skip := make(map[string]bool)
+	for _, f := range flags {
+		skip[f] = true
+	}
+	var filtered []string
+	skipNext := false
+	for _, arg := range args {
+		if skipNext {
+			skipNext = false
+			continue
+		}
+		if skip[arg] {
+			skipNext = true // skip the flag's value
+			continue
+		}
+		filtered = append(filtered, arg)
+	}
+	return filtered
+}
+
+func listServerNames(cfg *config.Config) string {
+	if len(cfg.Servers) == 0 {
+		return "(none configured)"
+	}
+	names := make([]string, len(cfg.Servers))
+	for i, s := range cfg.Servers {
+		names[i] = s.Name
+	}
+	return fmt.Sprintf("%v", names)
+}
+
 func output(data any, jsonOut bool) error {
 	_ = jsonOut // always JSON for now
 	enc := json.NewEncoder(os.Stdout)
@@ -198,6 +344,8 @@ Commands:
 
 Flags:
   --json              Force JSON output
+  --server <name>     Run on a specific remote server
+  --all               Run on all configured servers in parallel
   --config <path>     Config file path (see Configuration below)
 
 Configuration file is resolved in order:

@@ -1,12 +1,25 @@
 # homebutler configuration
-# Copy this file to homebutler.yaml and adjust to your setup.
+# Copy to ~/.config/homebutler/config.yaml (recommended) or homebutler.yaml
 
 # Servers to manage
 servers:
-  - name: local
-    host: localhost
-    # For remote servers, specify SSH connection:
-    # ssh: user@192.168.1.20
+  - name: mac-mini
+    host: 192.168.1.10
+    local: true           # This is the machine running homebutler
+
+  - name: rpi5
+    host: 192.168.1.20
+    user: pi
+    auth: key             # "key" (default, recommended) or "password"
+    key: ~/.ssh/id_ed25519  # optional, tries id_ed25519 and id_rsa by default
+    # port: 22            # optional, default 22
+
+  # Password auth example (not recommended):
+  # - name: old-server
+  #   host: 192.168.0.10
+  #   user: admin
+  #   auth: password
+  #   password: "your-password"
 
 # Wake-on-LAN targets
 wake:
