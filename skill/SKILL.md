@@ -1,6 +1,14 @@
 ---
 name: homeserver
 description: Homelab server management via homebutler CLI. Check system status (CPU/RAM/disk), manage Docker containers, Wake-on-LAN, scan open ports, discover network devices, and monitor resource alerts. Use when asked about server status, docker containers, wake machines, open ports, network devices, or system alerts.
+metadata:
+  {
+    "openclaw": {
+      "emoji": "🏠",
+      "requires": { "anyBins": ["homebutler"] },
+      "configPaths": ["homebutler.yaml"]
+    }
+  }
 ---
 
 # Homeserver Management
