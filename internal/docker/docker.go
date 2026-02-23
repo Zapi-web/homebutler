@@ -81,6 +81,12 @@ func Logs(name string, lines string) error {
 	if !isValidName(name) {
 		return fmt.Errorf("invalid container name: %s", name)
 	}
+	// Validate lines is a positive integer
+	for _, c := range lines {
+		if c < '0' || c > '9' {
+			return fmt.Errorf("invalid line count: %s (must be a positive integer)", lines)
+		}
+	}
 	out, err := util.RunCmd("docker", "logs", "--tail", lines, name)
 	if err != nil {
 		return fmt.Errorf("failed to get logs for %s: %w", name, err)
