@@ -11,6 +11,7 @@ import (
 	"github.com/Higangssh/homebutler/internal/config"
 	"github.com/Higangssh/homebutler/internal/docker"
 	"github.com/Higangssh/homebutler/internal/format"
+	"github.com/Higangssh/homebutler/internal/mcp"
 	"github.com/Higangssh/homebutler/internal/network"
 	"github.com/Higangssh/homebutler/internal/ports"
 	"github.com/Higangssh/homebutler/internal/remote"
@@ -72,6 +73,8 @@ func Execute(version, buildDate string) error {
 		return runAlerts(cfg, jsonOutput)
 	case "deploy":
 		return runDeploy(cfg)
+	case "mcp":
+		return mcp.NewServer(cfg, version).Run()
 	case "version":
 		fmt.Printf("homebutler %s (built %s)\n", version, buildDate)
 		return nil
@@ -491,6 +494,7 @@ Commands:
   network scan        Discover devices on local network
   alerts              Check resource thresholds (CPU, memory, disk)
   deploy              Install homebutler on remote servers
+  mcp                 Start MCP server (JSON-RPC over stdio)
   version             Print version
   help                Show this help
 
