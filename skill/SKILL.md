@@ -102,7 +102,7 @@ homebutler version
 
 ## Output Format
 
-All commands output JSON by default. Use `--json` flag to force JSON even if future versions add other formats.
+All commands output human-readable text by default. Use `--json` flag for machine-parseable JSON output (recommended for AI/script integration).
 
 ## Config File
 
