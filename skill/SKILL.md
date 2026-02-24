@@ -100,6 +100,12 @@ homebutler deploy --all                                 # Deploy to all remote s
 Installs homebutler on remote servers via SSH. Auto-detects remote OS/architecture.
 Install path priority: `/usr/local/bin` → `sudo /usr/local/bin` → `~/.local/bin` (with PATH auto-registration in .profile/.bashrc/.zshrc).
 
+### MCP Server
+```bash
+homebutler mcp                       # Start MCP server (JSON-RPC over stdio)
+```
+Starts a built-in MCP (Model Context Protocol) server for use with Claude Desktop, ChatGPT, Cursor, and other MCP clients. Exposes all homebutler tools (system_status, docker_list, docker_restart, docker_stop, docker_logs, wake, open_ports, network_scan, alerts) via standard MCP protocol. No network ports opened — uses stdio only.
+
 ### Version
 ```bash
 homebutler version
