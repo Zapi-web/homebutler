@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"os"
 	"reflect"
 	"testing"
 )
@@ -67,8 +68,8 @@ func TestListServerNames_Empty(t *testing.T) {
 
 func TestGetFlag(t *testing.T) {
 	// Save and restore os.Args
-	origArgs := origArgs
-	defer func() { origArgs = origArgs }()
+	savedArgs := os.Args
+	defer func() { os.Args = savedArgs }()
 
 	tests := []struct {
 		name     string
