@@ -208,8 +208,6 @@ func (m Model) View() string {
 			b.WriteString("\n")
 		} else {
 			b.WriteString(m.renderContent(tab.data))
-			b.WriteString(m.renderProcessPanel(tab.data, m.width-4))
-			b.WriteString("\n")
 		}
 	}
 
@@ -239,11 +237,11 @@ func (m Model) renderTabs() string {
 	return tabBar + serverCount
 }
 
-// renderContent draws left (system) and right (docker) panels side by side.
+// renderContent draws left (system) and right (docker+processes) panels side by side.
 func (m Model) renderContent(data ServerData) string {
-	leftWidth := m.width/3 - 2
-	if leftWidth < 24 {
-		leftWidth = 24
+	leftWidth := m.width*2/5 - 2
+	if leftWidth < 28 {
+		leftWidth = 28
 	}
 	rightWidth := m.width - leftWidth - 4
 	if rightWidth < 30 {
@@ -251,7 +249,11 @@ func (m Model) renderContent(data ServerData) string {
 	}
 
 	left := m.renderSystemPanel(data, leftWidth)
-	right := m.renderDockerPanel(data, rightWidth)
+
+	// Stack docker + processes vertically on the right
+	docker := m.renderDockerPanel(data, rightWidth)
+	procs := m.renderProcessPanel(data, rightWidth)
+	right := docker + "\n" + procs
 
 	return lipgloss.JoinHorizontal(lipgloss.Top, left, right) + "\n"
 }
@@ -268,26 +270,33 @@ func (m Model) renderSystemPanel(data ServerData, width int) string {
 
 	if data.Status != nil {
 		s := data.Status
-		barWidth := width - 16
+		barWidth := width - 20
 		if barWidth < 8 {
 			barWidth = 8
 		}
 
-		// CPU bar + sparkline
+		tab := m.servers[m.activeTab]
+
+		pad := "       " // 7 chars = "  CPU  "
+
+		// CPU bar + sparkline (always show sparkline row for stable layout)
 		lines = append(lines, fmt.Sprintf("  CPU  %s %5.1f%%",
 			progressBar(s.CPU.UsagePercent, barWidth), s.CPU.UsagePercent))
-		tab := m.servers[m.activeTab]
 		if len(tab.cpuHistory) > 0 {
-			spark := sparkline(tab.cpuHistory, barWidth)
-			lines = append(lines, "       "+sparklineColor(tab.cpuHistory).Render(spark))
+			lines = append(lines, pad+sparklineColor(tab.cpuHistory).Render(
+				sparkline(tab.cpuHistory, barWidth)))
+		} else {
+			lines = append(lines, pad+dimStyle.Render(strings.Repeat("▁", barWidth)))
 		}
 
 		// Memory bar + sparkline
 		lines = append(lines, fmt.Sprintf("  Mem  %s %5.1f%%",
 			progressBar(s.Memory.Percent, barWidth), s.Memory.Percent))
 		if len(tab.memHistory) > 0 {
-			spark := sparkline(tab.memHistory, barWidth)
-			lines = append(lines, "       "+sparklineColor(tab.memHistory).Render(spark))
+			lines = append(lines, pad+sparklineColor(tab.memHistory).Render(
+				sparkline(tab.memHistory, barWidth)))
+		} else {
+			lines = append(lines, pad+dimStyle.Render(strings.Repeat("▁", barWidth)))
 		}
 
 		for _, d := range s.Disks {
@@ -326,7 +335,12 @@ func (m Model) renderDockerPanel(data ServerData, width int) string {
 			header := fmt.Sprintf("  %-18s %-10s %-10s %s", "NAME", "STATE", "IMAGE", "STATUS")
 			lines = append(lines, headerStyle.Render(header))
 
-			for _, c := range data.Containers {
+			maxContainers := 8
+			shown := data.Containers
+			if len(shown) > maxContainers {
+				shown = shown[:maxContainers]
+			}
+			for _, c := range shown {
 				stateStr := c.State
 				switch c.State {
 				case "running":
@@ -342,6 +356,10 @@ func (m Model) renderDockerPanel(data ServerData, width int) string {
 					truncate(c.Image, 10),
 					truncate(c.Status, 20))
 				lines = append(lines, line)
+			}
+			if len(data.Containers) > maxContainers {
+				lines = append(lines, dimStyle.Render(fmt.Sprintf(
+					"  ... and %d more", len(data.Containers)-maxContainers)))
 			}
 		}
 	default:
