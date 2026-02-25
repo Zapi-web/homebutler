@@ -10,6 +10,7 @@ A single-binary CLI + MCP server that lets you monitor servers, control Docker, 
 
 ## Features
 
+- **TUI Dashboard** — Real-time monitoring with `homebutler watch` (btop-style)
 - **System Status** — CPU, memory, disk, uptime at a glance
 - **Docker Management** — List, restart, stop, logs for containers
 - **Wake-on-LAN** — Power on machines remotely
@@ -29,6 +30,7 @@ A single-binary CLI + MCP server that lets you monitor servers, control Docker, 
 
 | | homebutler | Glances/btop | Netdata | CasaOS |
 |---|---|---|---|---|
+| TUI dashboard | ✅ Built-in | ✅ | ❌ Web | ❌ Web |
 | Single binary | ✅ | ❌ | ❌ | ❌ |
 | No web server | ✅ | ❌ | ❌ | ❌ |
 | Multi-server SSH | ✅ Parallel | ❌ | ❌ | ❌ |
@@ -62,10 +64,12 @@ brew install Higangssh/homebutler/homebutler
 
 # Run
 homebutler status
+homebutler watch             # TUI dashboard
+homebutler watch --all       # monitor all servers
 homebutler docker list
 homebutler wake desktop
 homebutler ports
-homebutler status --all    # all servers at once
+homebutler status --all
 ```
 
 ## Usage
@@ -75,6 +79,7 @@ homebutler <command> [flags]
 
 Commands:
   status              System status (CPU, memory, disk, uptime)
+  watch               TUI dashboard (--all or --server <name>)
   docker list         List running containers
   docker restart <n>  Restart a container
   docker stop <n>     Stop a container
@@ -94,6 +99,24 @@ Flags:
   --local <path>      Use local binary for deploy (air-gapped)
   --config <path>     Config file (auto-detected, see Configuration)
 ```
+
+## TUI Dashboard
+
+`homebutler watch` launches an interactive terminal dashboard:
+
+```bash
+homebutler watch               # monitor local server
+homebutler watch --all         # all configured servers
+homebutler watch --server rpi  # specific server only
+```
+
+**Layout:**
+- **Top** — Server tabs (Tab / Shift+Tab to switch)
+- **Left panel** — CPU, memory, disk usage bars (color-coded: green → yellow → red)
+- **Right panel** — Docker containers with state and image info
+- **Bottom** — Alert status + keybinding hints
+
+Auto-refreshes every 2 seconds. Press `q` to quit.
 
 ## Configuration
 
