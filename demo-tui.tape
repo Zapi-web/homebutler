@@ -2,7 +2,7 @@ Output demo-tui.gif
 
 Set Shell "bash"
 Set FontSize 13
-Set Width 1100
+Set Width 1200
 Set Height 750
 Set Theme "Catppuccin Mocha"
 Set Padding 20
