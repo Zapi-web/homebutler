@@ -63,8 +63,7 @@ brew install Higangssh/homebutler/homebutler
 
 # Run
 homebutler status
-homebutler watch             # TUI dashboard
-homebutler watch --all       # monitor all servers
+homebutler watch             # TUI dashboard (all servers)
 homebutler docker list
 homebutler wake desktop
 homebutler ports
@@ -78,7 +77,7 @@ homebutler <command> [flags]
 
 Commands:
   status              System status (CPU, memory, disk, uptime)
-  watch               TUI dashboard (--all or --server <name>)
+  watch               TUI dashboard (monitors all configured servers)
   docker list         List running containers
   docker restart <n>  Restart a container
   docker stop <n>     Stop a container
@@ -104,9 +103,7 @@ Flags:
 `homebutler watch` launches an interactive terminal dashboard:
 
 ```bash
-homebutler watch               # monitor local server
-homebutler watch --all         # all configured servers
-homebutler watch --server rpi  # specific server only
+homebutler watch               # monitors all configured servers
 ```
 
 **Layout:**

@@ -37,9 +37,9 @@ func Execute(version, buildDate string) error {
 	serverName := getFlag("--server", "")
 	allServers := hasFlag("--all")
 
-	// watch command handles --all and --server itself (TUI mode)
+	// watch command — always monitors all configured servers
 	if os.Args[1] == "watch" {
-		return runWatch(cfg, serverName, allServers)
+		return tui.Run(cfg, nil)
 	}
 
 	// Multi-server: route to remote execution (skip for deploy — it handles remoting itself)
@@ -92,15 +92,7 @@ func Execute(version, buildDate string) error {
 	}
 }
 
-func runWatch(cfg *config.Config, serverName string, all bool) error {
-	var serverNames []string
-	if all {
-		// nil means all servers in NewModel
-	} else if serverName != "" {
-		serverNames = []string{serverName}
-	}
-	return tui.Run(cfg, serverNames)
-}
+
 
 func runStatus(jsonOut bool) error {
 	info, err := system.Status()
@@ -501,7 +493,7 @@ Usage:
 
 Commands:
   status              System status (CPU, memory, disk, uptime)
-  watch               TUI dashboard (--all or --server <name>)
+  watch               TUI dashboard (monitors all configured servers)
   docker list         List running containers
   docker restart <n>  Restart a container
   docker stop <n>     Stop a container
