@@ -1,0 +1,323 @@
+package tui
+
+import (
+	"fmt"
+	"strings"
+	"time"
+
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+
+	"github.com/Higangssh/homebutler/internal/config"
+)
+
+const refreshInterval = 2 * time.Second
+
+// tickMsg triggers a data refresh cycle.
+type tickMsg time.Time
+
+// dataMsg delivers fetched server data back to the model.
+type dataMsg struct {
+	index int
+	data  ServerData
+}
+
+// serverTab represents one monitored server in the dashboard.
+type serverTab struct {
+	config *config.ServerConfig
+	data   ServerData
+}
+
+// Model is the Bubble Tea model for the watch dashboard.
+type Model struct {
+	servers   []serverTab
+	activeTab int
+	width     int
+	height    int
+	cfg       *config.Config
+	quitting  bool
+}
+
+// NewModel creates a dashboard model for the given servers.
+// If serverNames is empty, all configured servers are used.
+func NewModel(cfg *config.Config, serverNames []string) Model {
+	var tabs []serverTab
+
+	if len(serverNames) == 0 {
+		for i := range cfg.Servers {
+			tabs = append(tabs, serverTab{
+				config: &cfg.Servers[i],
+				data:   ServerData{Name: cfg.Servers[i].Name},
+			})
+		}
+	} else {
+		for _, name := range serverNames {
+			if srv := cfg.FindServer(name); srv != nil {
+				tabs = append(tabs, serverTab{
+					config: srv,
+					data:   ServerData{Name: srv.Name},
+				})
+			}
+		}
+	}
+
+	// Fallback: monitor local machine
+	if len(tabs) == 0 {
+		tabs = append(tabs, serverTab{
+			config: &config.ServerConfig{Name: "local", Local: true},
+			data:   ServerData{Name: "local"},
+		})
+	}
+
+	return Model{
+		servers: tabs,
+		cfg:     cfg,
+	}
+}
+
+// Init starts the initial data fetch and tick timer.
+func (m Model) Init() tea.Cmd {
+	cmds := make([]tea.Cmd, len(m.servers))
+	for i := range m.servers {
+		idx := i
+		srv := m.servers[i]
+		cmds[i] = func() tea.Msg {
+			return dataMsg{
+				index: idx,
+				data:  fetchServer(srv.config, &m.cfg.Alerts),
+			}
+		}
+	}
+	cmds = append(cmds, tickCmd())
+	return tea.Batch(cmds...)
+}
+
+func tickCmd() tea.Cmd {
+	return tea.Tick(refreshInterval, func(t time.Time) tea.Msg {
+		return tickMsg(t)
+	})
+}
+
+// Update handles messages (keys, window resize, data, tick).
+func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "q", "ctrl+c":
+			m.quitting = true
+			return m, tea.Quit
+		case "tab":
+			if len(m.servers) > 1 {
+				m.activeTab = (m.activeTab + 1) % len(m.servers)
+			}
+		case "shift+tab":
+			if len(m.servers) > 1 {
+				m.activeTab = (m.activeTab - 1 + len(m.servers)) % len(m.servers)
+			}
+		}
+
+	case tea.WindowSizeMsg:
+		m.width = msg.Width
+		m.height = msg.Height
+
+	case tickMsg:
+		cmds := make([]tea.Cmd, len(m.servers))
+		for i := range m.servers {
+			idx := i
+			srv := m.servers[i]
+			cmds[i] = func() tea.Msg {
+				return dataMsg{
+					index: idx,
+					data:  fetchServer(srv.config, &m.cfg.Alerts),
+				}
+			}
+		}
+		cmds = append(cmds, tickCmd())
+		return m, tea.Batch(cmds...)
+
+	case dataMsg:
+		if msg.index >= 0 && msg.index < len(m.servers) {
+			m.servers[msg.index].data = msg.data
+		}
+	}
+
+	return m, nil
+}
+
+// View renders the full dashboard.
+func (m Model) View() string {
+	if m.quitting {
+		return ""
+	}
+	if m.width == 0 {
+		return "  Loading dashboard..."
+	}
+
+	var b strings.Builder
+
+	// Tabs
+	b.WriteString(m.renderTabs())
+	b.WriteString("\n")
+
+	// Main content
+	if m.activeTab < len(m.servers) {
+		tab := m.servers[m.activeTab]
+		if tab.data.Error != nil {
+			errPanel := panelStyle.Width(m.width - 4).Render(
+				criticalStyle.Render(fmt.Sprintf("  Error: %v", tab.data.Error)))
+			b.WriteString(errPanel)
+			b.WriteString("\n")
+		} else {
+			b.WriteString(m.renderContent(tab.data))
+		}
+	}
+
+	// Footer
+	b.WriteString(m.renderFooter())
+
+	return b.String()
+}
+
+// renderTabs draws the server tab bar.
+func (m Model) renderTabs() string {
+	var tabs []string
+	for i, srv := range m.servers {
+		name := srv.data.Name
+		if name == "" {
+			name = srv.config.Name
+		}
+		if i == m.activeTab {
+			tabs = append(tabs, activeTabStyle.Render(" "+name+" "))
+		} else {
+			tabs = append(tabs, inactiveTabStyle.Render(" "+name+" "))
+		}
+	}
+	return lipgloss.JoinHorizontal(lipgloss.Top, tabs...)
+}
+
+// renderContent draws left (system) and right (docker) panels side by side.
+func (m Model) renderContent(data ServerData) string {
+	leftWidth := m.width/3 - 2
+	if leftWidth < 24 {
+		leftWidth = 24
+	}
+	rightWidth := m.width - leftWidth - 4
+	if rightWidth < 30 {
+		rightWidth = 30
+	}
+
+	left := m.renderSystemPanel(data, leftWidth)
+	right := m.renderDockerPanel(data, rightWidth)
+
+	return lipgloss.JoinHorizontal(lipgloss.Top, left, right) + "\n"
+}
+
+// renderSystemPanel draws CPU/memory/disk bars and uptime info.
+func (m Model) renderSystemPanel(data ServerData, width int) string {
+	var lines []string
+	lines = append(lines, titleStyle.Render("System"))
+	lines = append(lines, "")
+
+	if data.Status != nil {
+		s := data.Status
+		barWidth := width - 16
+		if barWidth < 8 {
+			barWidth = 8
+		}
+
+		lines = append(lines, fmt.Sprintf("  CPU  %s %5.1f%%",
+			progressBar(s.CPU.UsagePercent, barWidth), s.CPU.UsagePercent))
+		lines = append(lines, fmt.Sprintf("  Mem  %s %5.1f%%",
+			progressBar(s.Memory.Percent, barWidth), s.Memory.Percent))
+		for _, d := range s.Disks {
+			label := truncate(d.Mount, 4)
+			lines = append(lines, fmt.Sprintf("  %-4s %s %5.1f%%",
+				label, progressBar(d.Percent, barWidth), d.Percent))
+		}
+		lines = append(lines, "")
+		lines = append(lines, fmt.Sprintf("  Uptime:  %s", s.Uptime))
+		lines = append(lines, fmt.Sprintf("  OS:      %s/%s", s.OS, s.Arch))
+		lines = append(lines, fmt.Sprintf("  Cores:   %d", s.CPU.Cores))
+		lines = append(lines, fmt.Sprintf("  Memory:  %.1f / %.1f GB", s.Memory.UsedGB, s.Memory.TotalGB))
+	} else {
+		lines = append(lines, dimStyle.Render("  Waiting for data..."))
+	}
+
+	content := strings.Join(lines, "\n")
+	return panelStyle.Width(width).Render(content)
+}
+
+// renderDockerPanel draws the container list table.
+func (m Model) renderDockerPanel(data ServerData, width int) string {
+	var lines []string
+	lines = append(lines, titleStyle.Render("Docker Containers"))
+	lines = append(lines, "")
+
+	if data.Containers != nil {
+		if len(data.Containers) == 0 {
+			lines = append(lines, dimStyle.Render("  No containers"))
+		} else {
+			header := fmt.Sprintf("  %-18s %-10s %-10s %s", "NAME", "STATE", "IMAGE", "STATUS")
+			lines = append(lines, headerStyle.Render(header))
+
+			for _, c := range data.Containers {
+				stateStr := c.State
+				switch c.State {
+				case "running":
+					stateStr = okStyle.Render(fmt.Sprintf("%-10s", c.State))
+				case "exited":
+					stateStr = criticalStyle.Render(fmt.Sprintf("%-10s", c.State))
+				default:
+					stateStr = warningStyle.Render(fmt.Sprintf("%-10s", c.State))
+				}
+				line := fmt.Sprintf("  %-18s %s %-10s %s",
+					truncate(c.Name, 18),
+					stateStr,
+					truncate(c.Image, 10),
+					truncate(c.Status, 20))
+				lines = append(lines, line)
+			}
+		}
+	} else {
+		lines = append(lines, dimStyle.Render("  Waiting for data..."))
+	}
+
+	content := strings.Join(lines, "\n")
+	return panelStyle.Width(width).Render(content)
+}
+
+// renderFooter draws alerts and keybinding hints.
+func (m Model) renderFooter() string {
+	var parts []string
+
+	// Alerts line
+	if m.activeTab < len(m.servers) {
+		data := m.servers[m.activeTab].data
+		if data.Alerts != nil {
+			var alertParts []string
+			a := data.Alerts
+			alertParts = append(alertParts,
+				alertStyle(a.CPU.Status).Render(fmt.Sprintf("CPU: %.0f%%", a.CPU.Current)))
+			alertParts = append(alertParts,
+				alertStyle(a.Memory.Status).Render(fmt.Sprintf("Mem: %.0f%%", a.Memory.Current)))
+			for _, d := range a.Disks {
+				alertParts = append(alertParts,
+					alertStyle(d.Status).Render(fmt.Sprintf("Disk %s: %.0f%%", d.Mount, d.Current)))
+			}
+			parts = append(parts, "  Alerts: "+strings.Join(alertParts, "  "))
+		}
+	}
+
+	parts = append(parts, dimStyle.Render("  Tab: switch server | q: quit | Auto-refresh: 2s"))
+
+	footer := strings.Join(parts, "\n")
+	return panelStyle.Width(m.width - 4).Render(footer)
+}
+
+// Run starts the TUI dashboard.
+func Run(cfg *config.Config, serverNames []string) error {
+	m := NewModel(cfg, serverNames)
+	p := tea.NewProgram(m, tea.WithAltScreen())
+	_, err := p.Run()
+	return err
+}

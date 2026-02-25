@@ -16,6 +16,7 @@ import (
 	"github.com/Higangssh/homebutler/internal/ports"
 	"github.com/Higangssh/homebutler/internal/remote"
 	"github.com/Higangssh/homebutler/internal/system"
+	"github.com/Higangssh/homebutler/internal/tui"
 	"github.com/Higangssh/homebutler/internal/wake"
 )
 
@@ -35,6 +36,11 @@ func Execute(version, buildDate string) error {
 	jsonOutput := hasFlag("--json")
 	serverName := getFlag("--server", "")
 	allServers := hasFlag("--all")
+
+	// watch command handles --all and --server itself (TUI mode)
+	if os.Args[1] == "watch" {
+		return runWatch(cfg, serverName, allServers)
+	}
 
 	// Multi-server: route to remote execution (skip for deploy — it handles remoting itself)
 	isDeployCmd := len(os.Args) >= 2 && os.Args[1] == "deploy"
@@ -84,6 +90,16 @@ func Execute(version, buildDate string) error {
 	default:
 		return fmt.Errorf("unknown command: %s (run 'homebutler help' for usage)", os.Args[1])
 	}
+}
+
+func runWatch(cfg *config.Config, serverName string, all bool) error {
+	var serverNames []string
+	if all {
+		// nil means all servers in NewModel
+	} else if serverName != "" {
+		serverNames = []string{serverName}
+	}
+	return tui.Run(cfg, serverNames)
 }
 
 func runStatus(jsonOut bool) error {
@@ -485,6 +501,7 @@ Usage:
 
 Commands:
   status              System status (CPU, memory, disk, uptime)
+  watch               TUI dashboard (--all or --server <name>)
   docker list         List running containers
   docker restart <n>  Restart a container
   docker stop <n>     Stop a container
