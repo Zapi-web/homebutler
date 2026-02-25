@@ -1,5 +1,4 @@
 // cmd/demo/main.go — Renders fake CLI/TUI output for GIF recording.
-// Uses the same Lip Gloss styles as the real TUI but prints to stdout (no alt screen).
 package main
 
 import (
@@ -80,10 +79,10 @@ func main() {
 }
 
 func printStatus() {
-	emoji := lipgloss.NewStyle().Bold(true)
+	bold := lipgloss.NewStyle().Bold(true)
 	dim := lipgloss.NewStyle().Foreground(lipgloss.Color("241"))
 
-	fmt.Println(emoji.Render("🖥  homelab-server") + dim.Render(" (linux/arm64)"))
+	fmt.Println(bold.Render("🖥  homelab-server") + dim.Render(" (linux/arm64)"))
 	fmt.Println(dim.Render("   Uptime:  ") + "42d 7h")
 	fmt.Println(dim.Render("   CPU:     ") + greenStyle.Render("23.4%") + dim.Render(" (10 cores)"))
 	fmt.Println(dim.Render("   Memory:  ") + "7.9 / 16.0 GB " + greenStyle.Render("(49.2%)"))
@@ -139,6 +138,20 @@ func printAlerts() {
 }
 
 func printTUI() {
+	const hBorder = 2
+	const hPad = 4
+
+	leftOuter := tuiWidth * 2 / 5
+	rightOuter := tuiWidth - leftOuter
+	leftW := leftOuter - hBorder
+	rightW := rightOuter - hBorder
+	footerW := leftOuter + rightOuter - hBorder
+	leftInner := leftW - hPad
+	barW := leftInner - 14
+	if barW < 5 {
+		barW = 5
+	}
+
 	var b strings.Builder
 
 	// Tabs
@@ -148,31 +161,46 @@ func printTUI() {
 	b.WriteString(tab1 + tab2 + serverCount + "\n")
 
 	// Left panel — System
-	leftWidth := tuiWidth/3 + 2
-	barW := leftWidth - 20
-	if barW < 8 {
-		barW = 8
-	}
 	var sysLines []string
 	sysLines = append(sysLines, titleStyle.Render("⚡ homelab-server"))
 	sysLines = append(sysLines, "")
+
+	// Metrics (no blank lines)
 	sysLines = append(sysLines, fmt.Sprintf("  CPU  %s %5.1f%%", progressBar(23.4, barW), 23.4))
 	sysLines = append(sysLines, fmt.Sprintf("  Mem  %s %5.1f%%", progressBar(49.2, barW), 49.2))
 	sysLines = append(sysLines, fmt.Sprintf("  /    %s %5.1f%%", progressBar(3.0, barW), 3.0))
+
+	// History section
+	sysLines = append(sysLines, "")
+	divLabel := "── History (2min) "
+	divFill := leftInner - 2 - len(divLabel)
+	if divFill < 0 {
+		divFill = 0
+	}
+	sysLines = append(sysLines, dimStyle.Render("  "+divLabel+strings.Repeat("─", divFill)))
+
+	// Fake sparkline data
+	cpuSpark := "▂▃▄▅▃▂▁▃▂▃▅▆▄▃▂▃▄▃▂▃"
+	memSpark := "▅▆▆▅▆▆▅▆▅▆▆▅▆▆▅▆▅▆▆▅"
+	sysLines = append(sysLines, "  CPU "+greenStyle.Render(cpuSpark))
+	sysLines = append(sysLines, "  Mem "+yellowStyle.Render(memSpark))
+
+	// Info
 	sysLines = append(sysLines, "")
 	sysLines = append(sysLines, "  Uptime:  42d 7h")
 	sysLines = append(sysLines, "  OS:      linux/arm64")
 	sysLines = append(sysLines, "  Cores:   10")
 	sysLines = append(sysLines, "  Memory:  7.9 / 16.0 GB")
-	leftPanel := panelStyle.Width(leftWidth).Render(strings.Join(sysLines, "\n"))
+	leftPanel := panelStyle.Width(leftW).Render(strings.Join(sysLines, "\n"))
 
-	// Right panel — Docker
-	rightWidth := tuiWidth - leftWidth - 4
-	var dockLines []string
-	dockLines = append(dockLines, titleStyle.Render("Docker Containers"))
-	dockLines = append(dockLines, "")
+	// Right panel — Docker + Processes (one panel)
+	var rightLines []string
+
+	// Docker
+	rightLines = append(rightLines, titleStyle.Render("Docker Containers"))
+	rightLines = append(rightLines, "")
 	hdr := fmt.Sprintf("  %-18s %-10s %-10s %s", "NAME", "STATE", "IMAGE", "STATUS")
-	dockLines = append(dockLines, headerStyle.Render(hdr))
+	rightLines = append(rightLines, headerStyle.Render(hdr))
 
 	type ctr struct{ name, state, image, status string }
 	containers := []ctr{
@@ -187,9 +215,36 @@ func printTUI() {
 		if c.state == "exited" {
 			stateStr = redStyle.Render(fmt.Sprintf("%-10s", c.state))
 		}
-		dockLines = append(dockLines, fmt.Sprintf("  %-18s %s %-10s %s", c.name, stateStr, c.image, c.status))
+		rightLines = append(rightLines, fmt.Sprintf("  %-18s %s %-10s %s", c.name, stateStr, c.image, c.status))
 	}
-	rightPanel := panelStyle.Width(rightWidth).Render(strings.Join(dockLines, "\n"))
+
+	// Gap between docker and processes
+	rightLines = append(rightLines, "")
+	rightLines = append(rightLines, "")
+
+	// Processes
+	rightLines = append(rightLines, titleStyle.Render("Top Processes (CPU)"))
+	rightLines = append(rightLines, "")
+	pHdr := fmt.Sprintf("  %6s  %6s  %6s  %s", "PID", "CPU%", "MEM%", "NAME")
+	rightLines = append(rightLines, headerStyle.Render(pHdr))
+
+	type proc struct {
+		pid        int
+		cpu, mem   float64
+		name       string
+	}
+	procs := []proc{
+		{462, 8.3, 0.2, "WallpaperAerials~"},
+		{169, 5.1, 0.4, "WindowServer"},
+		{561, 2.7, 0.2, "VTDecoderXPCSer~"},
+		{392, 0.9, 0.8, "iTerm2"},
+		{4679, 0.6, 3.9, "openclaw-gateway"},
+	}
+	for _, p := range procs {
+		rightLines = append(rightLines, fmt.Sprintf("  %6d  %5.1f%%  %5.1f%%  %s",
+			p.pid, p.cpu, p.mem, p.name))
+	}
+	rightPanel := panelStyle.Width(rightW).Render(strings.Join(rightLines, "\n"))
 
 	b.WriteString(lipgloss.JoinHorizontal(lipgloss.Top, leftPanel, rightPanel) + "\n")
 
@@ -204,7 +259,7 @@ func printTUI() {
 		headerStyle.Render("q") + " quit  │  " +
 		dimStyle.Render("⟳ 2s")
 	footerParts = append(footerParts, "  "+keys)
-	footer := panelStyle.Width(tuiWidth - 4).Render(strings.Join(footerParts, "\n"))
+	footer := panelStyle.Width(footerW).Render(strings.Join(footerParts, "\n"))
 	b.WriteString(footer)
 
 	fmt.Print(b.String())

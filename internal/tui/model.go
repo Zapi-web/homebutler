@@ -48,6 +48,51 @@ type Model struct {
 	quitting  bool
 }
 
+// panelWidths holds all pre-computed widths for consistent layout.
+type panelWidths struct {
+	leftW    int // Width() param for left panelStyle (outer - border)
+	rightW   int // Width() param for right panelStyle
+	footerW  int // Width() param for footer panelStyle
+	barWidth int // progress bar character width
+}
+
+// calcWidths computes all panel widths from terminal width.
+// panelStyle has Border(Rounded)=2 horizontal, Padding(1,2)=4 horizontal.
+// Width(w) sets the area including padding but excluding borders,
+// so outer = w + 2, and content text area = w - 4.
+func (m Model) calcWidths() panelWidths {
+	const hBorder = 2
+	const hPad = 4
+
+	leftOuter := m.width * 2 / 5
+	if leftOuter < 30 {
+		leftOuter = 30
+	}
+	rightOuter := m.width - leftOuter
+	if rightOuter < 30 {
+		rightOuter = 30
+	}
+
+	leftW := leftOuter - hBorder
+	rightW := rightOuter - hBorder
+	leftInner := leftW - hPad
+
+	// footer spans both panels exactly: outer = leftOuter + rightOuter
+	footerW := leftOuter + rightOuter - hBorder
+
+	barWidth := leftInner - 14
+	if barWidth < 5 {
+		barWidth = 5
+	}
+
+	return panelWidths{
+		leftW:    leftW,
+		rightW:   rightW,
+		footerW:  footerW,
+		barWidth: barWidth,
+	}
+}
+
 // NewModel creates a dashboard model for the given servers.
 // If serverNames is empty, all configured servers are used.
 func NewModel(cfg *config.Config, serverNames []string) Model {
@@ -192,6 +237,7 @@ func (m Model) View() string {
 		return "  Loading dashboard..."
 	}
 
+	w := m.calcWidths()
 	var b strings.Builder
 
 	// Tabs
@@ -202,17 +248,17 @@ func (m Model) View() string {
 	if m.activeTab < len(m.servers) {
 		tab := m.servers[m.activeTab]
 		if tab.data.Error != nil {
-			errPanel := panelStyle.Width(m.width - 4).Render(
+			errPanel := panelStyle.Width(w.footerW).Render(
 				criticalStyle.Render(fmt.Sprintf("  Error: %v", tab.data.Error)))
 			b.WriteString(errPanel)
 			b.WriteString("\n")
 		} else {
-			b.WriteString(m.renderContent(tab.data))
+			b.WriteString(m.renderContent(tab.data, w))
 		}
 	}
 
 	// Footer
-	b.WriteString(m.renderFooter())
+	b.WriteString(m.renderFooter(w))
 
 	return b.String()
 }
@@ -238,28 +284,14 @@ func (m Model) renderTabs() string {
 }
 
 // renderContent draws left (system) and right (docker+processes) panels side by side.
-func (m Model) renderContent(data ServerData) string {
-	leftWidth := m.width*2/5 - 2
-	if leftWidth < 28 {
-		leftWidth = 28
-	}
-	rightWidth := m.width - leftWidth - 4
-	if rightWidth < 30 {
-		rightWidth = 30
-	}
-
-	left := m.renderSystemPanel(data, leftWidth)
-
-	// Stack docker + processes vertically on the right
-	docker := m.renderDockerPanel(data, rightWidth)
-	procs := m.renderProcessPanel(data, rightWidth)
-	right := docker + "\n" + procs
-
+func (m Model) renderContent(data ServerData, w panelWidths) string {
+	left := m.renderSystemPanel(data, w)
+	right := m.renderRightPanel(data, w)
 	return lipgloss.JoinHorizontal(lipgloss.Top, left, right) + "\n"
 }
 
-// renderSystemPanel draws CPU/memory/disk bars and uptime info.
-func (m Model) renderSystemPanel(data ServerData, width int) string {
+// renderSystemPanel draws CPU/memory/disk bars, history sparklines, and system info.
+func (m Model) renderSystemPanel(data ServerData, w panelWidths) string {
 	var lines []string
 	serverName := data.Name
 	if serverName == "" {
@@ -270,40 +302,50 @@ func (m Model) renderSystemPanel(data ServerData, width int) string {
 
 	if data.Status != nil {
 		s := data.Status
-		barWidth := width - 20
-		if barWidth < 8 {
-			barWidth = 8
-		}
+		bw := w.barWidth
 
-		tab := m.servers[m.activeTab]
-
-		pad := "       " // 7 chars = "  CPU  "
-
-		// CPU bar + sparkline (always show sparkline row for stable layout)
+		// Metrics: progress bars with no blank lines between them
 		lines = append(lines, fmt.Sprintf("  CPU  %s %5.1f%%",
-			progressBar(s.CPU.UsagePercent, barWidth), s.CPU.UsagePercent))
-		if len(tab.cpuHistory) > 0 {
-			lines = append(lines, pad+sparklineColor(tab.cpuHistory).Render(
-				sparkline(tab.cpuHistory, barWidth)))
-		} else {
-			lines = append(lines, pad+dimStyle.Render(strings.Repeat("▁", barWidth)))
-		}
-
-		// Memory bar + sparkline
+			progressBar(s.CPU.UsagePercent, bw), s.CPU.UsagePercent))
 		lines = append(lines, fmt.Sprintf("  Mem  %s %5.1f%%",
-			progressBar(s.Memory.Percent, barWidth), s.Memory.Percent))
-		if len(tab.memHistory) > 0 {
-			lines = append(lines, pad+sparklineColor(tab.memHistory).Render(
-				sparkline(tab.memHistory, barWidth)))
-		} else {
-			lines = append(lines, pad+dimStyle.Render(strings.Repeat("▁", barWidth)))
-		}
-
+			progressBar(s.Memory.Percent, bw), s.Memory.Percent))
 		for _, d := range s.Disks {
 			label := truncate(d.Mount, 4)
 			lines = append(lines, fmt.Sprintf("  %-4s %s %5.1f%%",
-				label, progressBar(d.Percent, barWidth), d.Percent))
+				label, progressBar(d.Percent, bw), d.Percent))
 		}
+
+		// History section with dim divider
+		lines = append(lines, "")
+		tab := m.servers[m.activeTab]
+
+		dividerLabel := "── History (2min) "
+		leftInner := w.barWidth + 14
+		dividerFill := leftInner - 2 - lipgloss.Width(dividerLabel)
+		if dividerFill < 0 {
+			dividerFill = 0
+		}
+		lines = append(lines, dimStyle.Render("  "+dividerLabel+strings.Repeat("─", dividerFill)))
+
+		// CPU sparkline
+		if len(tab.cpuHistory) > 0 {
+			rendered := sparklineColor(tab.cpuHistory).Render(sparkline(tab.cpuHistory, bw))
+			lines = append(lines, "  CPU "+lipgloss.NewStyle().Width(bw).Render(rendered))
+		} else {
+			lines = append(lines, "  CPU "+lipgloss.NewStyle().Width(bw).Render(
+				dimStyle.Render(strings.Repeat("▁", bw))))
+		}
+
+		// Mem sparkline
+		if len(tab.memHistory) > 0 {
+			rendered := sparklineColor(tab.memHistory).Render(sparkline(tab.memHistory, bw))
+			lines = append(lines, "  Mem "+lipgloss.NewStyle().Width(bw).Render(rendered))
+		} else {
+			lines = append(lines, "  Mem "+lipgloss.NewStyle().Width(bw).Render(
+				dimStyle.Render(strings.Repeat("▁", bw))))
+		}
+
+		// Info section
 		lines = append(lines, "")
 		lines = append(lines, fmt.Sprintf("  Uptime:  %s", s.Uptime))
 		lines = append(lines, fmt.Sprintf("  OS:      %s/%s", s.OS, s.Arch))
@@ -314,12 +356,14 @@ func (m Model) renderSystemPanel(data ServerData, width int) string {
 	}
 
 	content := strings.Join(lines, "\n")
-	return panelStyle.Width(width).Render(content)
+	return panelStyle.Width(w.leftW).Render(content)
 }
 
-// renderDockerPanel draws the container list table.
-func (m Model) renderDockerPanel(data ServerData, width int) string {
+// renderRightPanel draws Docker containers and top processes in a single panel.
+func (m Model) renderRightPanel(data ServerData, w panelWidths) string {
 	var lines []string
+
+	// Docker section
 	lines = append(lines, titleStyle.Render("Docker Containers"))
 	lines = append(lines, "")
 
@@ -366,13 +410,11 @@ func (m Model) renderDockerPanel(data ServerData, width int) string {
 		lines = append(lines, dimStyle.Render("  Waiting for data..."))
 	}
 
-	content := strings.Join(lines, "\n")
-	return panelStyle.Width(width).Render(content)
-}
+	// Two blank lines separating Docker and Processes (same panel)
+	lines = append(lines, "")
+	lines = append(lines, "")
 
-// renderProcessPanel draws the top processes table.
-func (m Model) renderProcessPanel(data ServerData, width int) string {
-	var lines []string
+	// Processes section
 	lines = append(lines, titleStyle.Render("Top Processes (CPU)"))
 	lines = append(lines, "")
 
@@ -388,11 +430,11 @@ func (m Model) renderProcessPanel(data ServerData, width int) string {
 	}
 
 	content := strings.Join(lines, "\n")
-	return panelStyle.Width(width).Render(content)
+	return panelStyle.Width(w.rightW).Render(content)
 }
 
 // renderFooter draws alerts and keybinding hints.
-func (m Model) renderFooter() string {
+func (m Model) renderFooter(w panelWidths) string {
 	var parts []string
 
 	// Alerts line
@@ -423,7 +465,7 @@ func (m Model) renderFooter() string {
 	parts = append(parts, "  "+strings.Join(keys, "  │  "))
 
 	footer := strings.Join(parts, "\n")
-	return panelStyle.Width(m.width - 4).Render(footer)
+	return panelStyle.Width(w.footerW).Render(footer)
 }
 
 // Run starts the TUI dashboard.
