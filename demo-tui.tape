@@ -1,17 +1,25 @@
 Output demo-tui.gif
 
-Set Theme "Catppuccin Mocha"
-Set Width 1200
-Set Height 600
+Set Shell "bash"
 Set FontSize 14
-Set TypingSpeed 80ms
+Set Width 1100
+Set Height 650
+Set Theme "Catppuccin Mocha"
+Set Padding 20
+Set TypingSpeed 60ms
+Set PlaybackSpeed 0.5
 
-Type "homebutler watch"
+Hide
+Type "function homebutler() { /tmp/hb-demo; }"
 Enter
-Sleep 6s
-Tab
-Sleep 4s
-Tab
+Sleep 200ms
+Type "clear"
+Enter
+Sleep 200ms
+Show
+
+Type "homebutler watch --all"
+Sleep 200ms
+Enter
+
 Sleep 3s
-Type "q"
-Sleep 1s
