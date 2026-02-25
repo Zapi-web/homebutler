@@ -216,7 +216,11 @@ func (m Model) renderContent(data ServerData) string {
 // renderSystemPanel draws CPU/memory/disk bars and uptime info.
 func (m Model) renderSystemPanel(data ServerData, width int) string {
 	var lines []string
-	lines = append(lines, titleStyle.Render("System"))
+	serverName := data.Name
+	if serverName == "" {
+		serverName = "System"
+	}
+	lines = append(lines, titleStyle.Render("⚡ "+serverName))
 	lines = append(lines, "")
 
 	if data.Status != nil {

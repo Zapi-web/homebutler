@@ -237,8 +237,8 @@ func TestView_WithData(t *testing.T) {
 	}
 
 	// Check system panel content
-	if !strings.Contains(v, "System") {
-		t.Error("expected 'System' title")
+	if !strings.Contains(v, "rpi5") {
+		t.Error("expected server name in system panel")
 	}
 	if !strings.Contains(v, "CPU") {
 		t.Error("expected CPU in system panel")
