@@ -195,7 +195,7 @@ func (m Model) renderTabs() string {
 		}
 	}
 	tabBar := lipgloss.JoinHorizontal(lipgloss.Top, tabs...)
-	serverCount := dimStyle.Render(fmt.Sprintf("  %d servers", len(m.servers)))
+	serverCount := dimStyle.Render(fmt.Sprintf("  (%d available · Tab to switch)", len(m.servers)))
 	return tabBar + serverCount
 }
 
