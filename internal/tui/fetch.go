@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/Higangssh/homebutler/internal/alerts"
@@ -17,12 +18,13 @@ const fetchTimeout = 10 * time.Second
 
 // ServerData holds all collected data for a single server.
 type ServerData struct {
-	Name       string
-	Status     *system.StatusInfo
-	Containers []docker.Container
-	Alerts     *alerts.AlertResult
-	Error      error
-	LastUpdate time.Time
+	Name         string
+	Status       *system.StatusInfo
+	Containers   []docker.Container
+	DockerStatus string // "ok", "not_installed", "unavailable", ""
+	Alerts       *alerts.AlertResult
+	Error        error
+	LastUpdate   time.Time
 }
 
 // fetchServer collects data from a server (local or remote) with a timeout.
@@ -65,16 +67,30 @@ func fetchLocal(alertCfg *config.AlertConfig) ServerData {
 	data.Name = status.Hostname
 
 	// Docker list with timeout (Docker Desktop may hang if not running)
-	dockerCh := make(chan []docker.Container, 1)
+	type dockerResult struct {
+		containers []docker.Container
+		err        error
+	}
+	dockerCh := make(chan dockerResult, 1)
 	go func() {
-		containers, _ := docker.List()
-		dockerCh <- containers
+		c, err := docker.List()
+		dockerCh <- dockerResult{c, err}
 	}()
 	select {
-	case containers := <-dockerCh:
-		data.Containers = containers
-	case <-time.After(3 * time.Second):
-		data.Containers = nil // skip if Docker is unresponsive
+	case res := <-dockerCh:
+		if res.err != nil {
+			errMsg := res.err.Error()
+			if strings.Contains(errMsg, "not installed") || strings.Contains(errMsg, "not found") {
+				data.DockerStatus = "not_installed"
+			} else {
+				data.DockerStatus = "unavailable"
+			}
+		} else {
+			data.DockerStatus = "ok"
+			data.Containers = res.containers
+		}
+	case <-time.After(2 * time.Second):
+		data.DockerStatus = "unavailable"
 	}
 
 	alertResult, _ := alerts.Check(alertCfg)

@@ -217,6 +217,7 @@ func TestView_WithData(t *testing.T) {
 			Memory:   system.MemInfo{TotalGB: 8, UsedGB: 4.2, Percent: 52.5},
 			Disks:    []system.DiskInfo{{Mount: "/", TotalGB: 64, UsedGB: 30, Percent: 47}},
 		},
+		DockerStatus: "ok",
 		Containers: []docker.Container{
 			{Name: "nginx", State: "running", Image: "nginx:latest", Status: "Up 2 days"},
 			{Name: "postgres", State: "running", Image: "postgres:16", Status: "Up 2 days"},
@@ -293,7 +294,8 @@ func TestView_EmptyContainers(t *testing.T) {
 			CPU:      system.CPUInfo{UsagePercent: 10, Cores: 4},
 			Memory:   system.MemInfo{TotalGB: 8, UsedGB: 2, Percent: 25},
 		},
-		Containers: []docker.Container{},
+		DockerStatus: "ok",
+		Containers:   []docker.Container{},
 	}
 
 	v := m.View()

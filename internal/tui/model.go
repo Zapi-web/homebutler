@@ -254,7 +254,12 @@ func (m Model) renderDockerPanel(data ServerData, width int) string {
 	lines = append(lines, titleStyle.Render("Docker Containers"))
 	lines = append(lines, "")
 
-	if data.Containers != nil {
+	switch data.DockerStatus {
+	case "not_installed":
+		lines = append(lines, dimStyle.Render("  Docker not installed"))
+	case "unavailable":
+		lines = append(lines, warningStyle.Render("  Docker unavailable (daemon not running?)"))
+	case "ok":
 		if len(data.Containers) == 0 {
 			lines = append(lines, dimStyle.Render("  No containers"))
 		} else {
@@ -279,7 +284,7 @@ func (m Model) renderDockerPanel(data ServerData, width int) string {
 				lines = append(lines, line)
 			}
 		}
-	} else {
+	default:
 		lines = append(lines, dimStyle.Render("  Waiting for data..."))
 	}
 
