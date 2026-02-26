@@ -10,7 +10,7 @@ import (
 
 type Config struct {
 	Servers []ServerConfig `yaml:"servers"`
-	Wake    []WakeTarget   `yaml:"wake"`
+	Wake    []WakeTarget   `yaml:"wake,omitempty"`
 	Alerts  AlertConfig    `yaml:"alerts"`
 
 }
