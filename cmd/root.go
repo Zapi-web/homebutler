@@ -1,9 +1,11 @@
 package cmd
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -77,6 +79,8 @@ func Execute(version, buildDate string) error {
 		return runWake(cfg, jsonOutput)
 	case "alerts":
 		return runAlerts(cfg, jsonOutput)
+	case "trust":
+		return runTrust(cfg)
 	case "deploy":
 		return runDeploy(cfg)
 	case "mcp":
@@ -202,6 +206,41 @@ func runAlerts(cfg *config.Config, jsonOut bool) error {
 		return fmt.Errorf("failed to check alerts: %w", err)
 	}
 	return output(result, jsonOut)
+}
+
+func runTrust(cfg *config.Config) error {
+	if len(os.Args) < 3 {
+		return fmt.Errorf("usage: homebutler trust <server> [--reset]")
+	}
+	serverName := os.Args[2]
+	reset := hasFlag("--reset")
+
+	server := cfg.FindServer(serverName)
+	if server == nil {
+		return fmt.Errorf("server %q not found in config. Available servers: %s", serverName, listServerNames(cfg))
+	}
+
+	if reset {
+		fmt.Fprintf(os.Stderr, "removing old host keys for %s...\n", server.Name)
+		if err := remote.RemoveHostKeys(server); err != nil {
+			return fmt.Errorf("failed to remove old keys: %w", err)
+		}
+	}
+
+	fmt.Fprintf(os.Stderr, "connecting to %s (%s:%d)...\n", server.Name, server.Host, server.SSHPort())
+	err := remote.TrustServer(server, func(fingerprint string) bool {
+		fmt.Fprintf(os.Stderr, "host key fingerprint: %s\n", fingerprint)
+		fmt.Fprint(os.Stderr, "trust this host? (y/n): ")
+		reader := bufio.NewReader(os.Stdin)
+		answer, _ := reader.ReadString('\n')
+		return strings.TrimSpace(strings.ToLower(answer)) == "y"
+	})
+	if err != nil {
+		return err
+	}
+
+	fmt.Fprintf(os.Stderr, "host key for %s added to known_hosts\n", server.Name)
+	return nil
 }
 
 // serverResult holds the result from a single server.
@@ -502,6 +541,7 @@ Commands:
   ports               List open ports with process info
   network scan        Discover devices on local network
   alerts              Check resource thresholds (CPU, memory, disk)
+  trust <server>      Trust a remote server's SSH host key
   deploy              Install homebutler on remote servers
   mcp                 Start MCP server (JSON-RPC over stdio)
   version             Print version
@@ -511,6 +551,7 @@ Flags:
   --json              Force JSON output
   --server <name>     Run on a specific remote server
   --all               Run on all configured servers in parallel
+  --reset             Remove old host key before re-trusting (use with trust)
   --local <path>      Use local binary for deploy (air-gapped)
   --config <path>     Config file path (see Configuration below)
 

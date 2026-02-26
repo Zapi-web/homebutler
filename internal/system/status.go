@@ -104,44 +104,121 @@ func getCPU() CPUInfo {
 
 	switch runtime.GOOS {
 	case "darwin":
-		// Use sysctl for fast CPU load (no sampling delay unlike top)
-		out, err := util.RunCmd("/usr/sbin/sysctl", "-n", "vm.loadavg")
-		if err == nil {
-			// Output: "{ 2.45 2.12 1.89 }" — use 1-min load average
-			cleaned := strings.Trim(strings.TrimSpace(out), "{ }")
-			fields := strings.Fields(cleaned)
-			if len(fields) >= 1 {
-				var load1 float64
-				fmt.Sscanf(fields[0], "%f", &load1)
-				// Convert load average to percentage (load / cores * 100)
-				usage = (load1 / float64(cores)) * 100
-				if usage > 100 {
-					usage = 100
-				}
+		// iostat -c 2 gives two samples; we use the second (instant usage).
+		// readDarwinCPUTimes already handles this internally, no double-call needed.
+		t := readDarwinCPUTimes()
+		if t != nil {
+			// t.total = user+sys+idle, t.idle = idle → usage = (total-idle)/total*100
+			if t.total > 0 {
+				usage = ((t.total - t.idle) / t.total) * 100
 			}
 		}
 	case "linux":
-		out, err := util.RunCmd("grep", "cpu ", "/proc/stat")
-		if err == nil {
-			fields := strings.Fields(out)
-			if len(fields) >= 8 {
-				var user, nice, sys, idle float64
-				fmt.Sscanf(fields[1], "%f", &user)
-				fmt.Sscanf(fields[2], "%f", &nice)
-				fmt.Sscanf(fields[3], "%f", &sys)
-				fmt.Sscanf(fields[4], "%f", &idle)
-				total := user + nice + sys + idle
-				if total > 0 {
-					usage = ((total - idle) / total) * 100
-				}
-			}
+		// Read /proc/stat twice with 200ms delta for instant CPU usage
+		t1 := readLinuxCPUTimes()
+		time.Sleep(200 * time.Millisecond)
+		t2 := readLinuxCPUTimes()
+		if t1 != nil && t2 != nil {
+			usage = cpuDelta(t1, t2)
 		}
+	}
+
+	if usage > 100 {
+		usage = 100
 	}
 
 	return CPUInfo{
 		UsagePercent: round2(usage),
 		Cores:        cores,
 	}
+}
+
+// cpuTimes holds cumulative CPU tick counts.
+type cpuTimes struct {
+	total float64
+	idle  float64
+}
+
+// cpuDelta calculates CPU usage percentage from two samples.
+func cpuDelta(t1, t2 *cpuTimes) float64 {
+	dTotal := t2.total - t1.total
+	dIdle := t2.idle - t1.idle
+	if dTotal <= 0 {
+		return 0
+	}
+	return ((dTotal - dIdle) / dTotal) * 100
+}
+
+// readLinuxCPUTimes reads cumulative CPU times from /proc/stat.
+func readLinuxCPUTimes() *cpuTimes {
+	data, err := os.ReadFile("/proc/stat")
+	if err != nil {
+		return nil
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		if strings.HasPrefix(line, "cpu ") {
+			return parseProcStatLine(line)
+		}
+	}
+	return nil
+}
+
+// parseProcStatLine parses a "cpu ..." line from /proc/stat.
+// Fields: cpu user nice system idle iowait irq softirq steal guest guest_nice
+func parseProcStatLine(line string) *cpuTimes {
+	fields := strings.Fields(line)
+	if len(fields) < 5 {
+		return nil
+	}
+	var user, nice, sys, idle, iowait, irq, softirq, steal float64
+	fmt.Sscanf(fields[1], "%f", &user)
+	fmt.Sscanf(fields[2], "%f", &nice)
+	fmt.Sscanf(fields[3], "%f", &sys)
+	fmt.Sscanf(fields[4], "%f", &idle)
+	if len(fields) > 5 {
+		fmt.Sscanf(fields[5], "%f", &iowait)
+	}
+	if len(fields) > 6 {
+		fmt.Sscanf(fields[6], "%f", &irq)
+	}
+	if len(fields) > 7 {
+		fmt.Sscanf(fields[7], "%f", &softirq)
+	}
+	if len(fields) > 8 {
+		fmt.Sscanf(fields[8], "%f", &steal)
+	}
+	total := user + nice + sys + idle + iowait + irq + softirq + steal
+	return &cpuTimes{total: total, idle: idle + iowait}
+}
+
+// readDarwinCPUTimes reads cumulative CPU times via host_processor_info.
+// macOS doesn't have kern.cp_time, so we parse `top -l 1 -n 0 -stats cpu`
+// or use sysctl machdep.xcpm.cpu_thermal_level as fallback.
+// Simplest reliable approach: parse /usr/bin/top output for CPU usage line.
+func readDarwinCPUTimes() *cpuTimes {
+	// Use iostat which gives instant CPU breakdown: user sys idle
+	// -w 1 = minimum 1 second interval, -c 2 = two samples (second is instant)
+	out, err := util.RunCmd("/usr/sbin/iostat", "-c", "2", "-w", "1")
+	if err != nil {
+		return nil
+	}
+	// iostat -c 2 outputs header + 2 samples. Use the last line (second sample).
+	lines := strings.Split(strings.TrimSpace(out), "\n")
+	if len(lines) < 3 {
+		return nil
+	}
+	lastLine := strings.TrimSpace(lines[len(lines)-1])
+	fields := strings.Fields(lastLine)
+	// iostat fields: KB/t tps MB/s us[3] sy[4] id[5] 1m 5m 15m
+	if len(fields) < 6 {
+		return nil
+	}
+	var user, sys, idle float64
+	fmt.Sscanf(fields[3], "%f", &user)
+	fmt.Sscanf(fields[4], "%f", &sys)
+	fmt.Sscanf(fields[5], "%f", &idle)
+	total := user + sys + idle
+	return &cpuTimes{total: total, idle: idle}
 }
 
 func getMemory() MemInfo {
