@@ -36,7 +36,7 @@ func Run(server *config.ServerConfig, args ...string) ([]byte, error) {
 
 	// Try configured bin path, then common locations
 	binPath := server.SSHBinPath()
-	cmd := fmt.Sprintf("export PATH=$HOME/.local/bin:$HOME/bin:/usr/local/bin:$PATH; %s %s", binPath, strings.Join(args, " "))
+	cmd := fmt.Sprintf("export PATH=$HOME/.local/bin:$HOME/bin:$HOME/go/bin:/opt/homebrew/bin:/usr/local/bin:/usr/local/sbin:/snap/bin:$PATH; %s %s", binPath, strings.Join(args, " "))
 	out, err := session.CombinedOutput(cmd)
 	if err != nil {
 		return nil, fmt.Errorf("[%s] remote command failed: %w\n  → Output: %s\n  → Check if homebutler is installed on the remote server: homebutler deploy %s", server.Name, err, strings.TrimSpace(string(out)), server.Name)
