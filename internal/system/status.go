@@ -171,10 +171,18 @@ func parseProcStatLine(line string) *cpuTimes {
 		return nil
 	}
 	var user, nice, sys, idle, iowait, irq, softirq, steal float64
-	fmt.Sscanf(fields[1], "%f", &user)
-	fmt.Sscanf(fields[2], "%f", &nice)
-	fmt.Sscanf(fields[3], "%f", &sys)
-	fmt.Sscanf(fields[4], "%f", &idle)
+	if n, _ := fmt.Sscanf(fields[1], "%f", &user); n != 1 {
+		return nil
+	}
+	if n, _ := fmt.Sscanf(fields[2], "%f", &nice); n != 1 {
+		return nil
+	}
+	if n, _ := fmt.Sscanf(fields[3], "%f", &sys); n != 1 {
+		return nil
+	}
+	if n, _ := fmt.Sscanf(fields[4], "%f", &idle); n != 1 {
+		return nil
+	}
 	if len(fields) > 5 {
 		fmt.Sscanf(fields[5], "%f", &iowait)
 	}
@@ -214,9 +222,15 @@ func readDarwinCPUTimes() *cpuTimes {
 		return nil
 	}
 	var user, sys, idle float64
-	fmt.Sscanf(fields[3], "%f", &user)
-	fmt.Sscanf(fields[4], "%f", &sys)
-	fmt.Sscanf(fields[5], "%f", &idle)
+	if n, _ := fmt.Sscanf(fields[3], "%f", &user); n != 1 {
+		return nil
+	}
+	if n, _ := fmt.Sscanf(fields[4], "%f", &sys); n != 1 {
+		return nil
+	}
+	if n, _ := fmt.Sscanf(fields[5], "%f", &idle); n != 1 {
+		return nil
+	}
 	total := user + sys + idle
 	return &cpuTimes{total: total, idle: idle}
 }
