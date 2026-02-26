@@ -28,6 +28,11 @@ func Execute(version, buildDate string) error {
 		return nil
 	}
 
+	// init command — runs before config loading (it creates the config)
+	if os.Args[1] == "init" {
+		return runInit()
+	}
+
 	// Load config
 	cfgPath := config.Resolve(getFlag("--config", ""))
 	cfg, err := config.Load(cfgPath)
@@ -531,6 +536,7 @@ Usage:
   homebutler <command> [flags]
 
 Commands:
+  init                Interactive setup wizard (creates config)
   status              System status (CPU, memory, disk, uptime)
   watch               TUI dashboard (monitors all configured servers)
   docker list         List running containers
