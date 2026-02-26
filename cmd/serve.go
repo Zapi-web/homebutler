@@ -1,0 +1,24 @@
+package cmd
+
+import (
+	"strconv"
+
+	"github.com/Higangssh/homebutler/internal/config"
+	"github.com/Higangssh/homebutler/internal/server"
+)
+
+func runServe(cfg *config.Config) error {
+	port := 8080
+	if v := getFlag("--port", ""); v != "" {
+		p, err := strconv.Atoi(v)
+		if err != nil || p < 1 || p > 65535 {
+			return err
+		}
+		port = p
+	}
+
+	demo := hasFlag("--demo")
+
+	srv := server.New(cfg, port, demo)
+	return srv.Run()
+}

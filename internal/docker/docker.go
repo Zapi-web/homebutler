@@ -2,6 +2,8 @@ package docker
 
 import (
 	"fmt"
+	"regexp"
+	"strings"
 
 	"github.com/Higangssh/homebutler/internal/util"
 )
@@ -40,7 +42,7 @@ func List() ([]Container, error) {
 			ID:    fields[0][:12],
 			Name:  fields[1],
 			Image: fields[2],
-			Status: fields[3],
+			Status: friendlyStatus(fields[3], fields[4]),
 			State: fields[4],
 		}
 		if len(fields) > 5 {
@@ -102,6 +104,41 @@ func Logs(name string, lines string) (*LogsResult, error) {
 		return nil, fmt.Errorf("failed to get logs for %s: %w", name, err)
 	}
 	return &LogsResult{Container: name, Lines: lines, Logs: out}, nil
+}
+
+var exitedRe = regexp.MustCompile(`(?i)exited\s*\(\d+\)\s*(.+)\s*ago`)
+
+// friendlyStatus converts raw docker status to user-friendly format.
+// "Exited (0) 6 hours ago" → "Stopped · 6h ago"
+// "Up 4 days" → "Running · 4d"
+func friendlyStatus(raw, state string) string {
+	if state == "running" {
+		s := strings.TrimPrefix(raw, "Up ")
+		s = shortenDuration(s)
+		return "Running · " + s
+	}
+	if m := exitedRe.FindStringSubmatch(raw); len(m) > 1 {
+		return "Stopped · " + shortenDuration(strings.TrimSpace(m[1])) + " ago"
+	}
+	return raw
+}
+
+// shortenDuration shortens "4 days" → "4d", "6 hours" → "6h", "30 minutes" → "30m".
+func shortenDuration(s string) string {
+	s = strings.ReplaceAll(s, " seconds", "s")
+	s = strings.ReplaceAll(s, " second", "s")
+	s = strings.ReplaceAll(s, " minutes", "m")
+	s = strings.ReplaceAll(s, " minute", "m")
+	s = strings.ReplaceAll(s, " hours", "h")
+	s = strings.ReplaceAll(s, " hour", "h")
+	s = strings.ReplaceAll(s, " days", "d")
+	s = strings.ReplaceAll(s, " day", "d")
+	s = strings.ReplaceAll(s, " weeks", "w")
+	s = strings.ReplaceAll(s, " week", "w")
+	s = strings.ReplaceAll(s, " months", "mo")
+	s = strings.ReplaceAll(s, " month", "mo")
+	s = strings.Replace(s, " ", "", -1)
+	return s
 }
 
 // isValidName prevents command injection by allowing only safe characters.

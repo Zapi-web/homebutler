@@ -15,7 +15,8 @@ A single-binary CLI + MCP server that lets you monitor servers, control Docker, 
 
 ## Features
 
-- **TUI Dashboard** — Real-time monitoring with `homebutler watch` (btop-style)
+- **Web Dashboard** — Beautiful dark-themed web UI with `homebutler serve`
+- **TUI Dashboard** — Real-time terminal monitoring with `homebutler watch` (btop-style)
 - **System Status** — CPU, memory, disk, uptime at a glance
 - **Docker Management** — List, restart, stop, logs for containers
 - **Wake-on-LAN** — Power on machines remotely
@@ -36,8 +37,9 @@ A single-binary CLI + MCP server that lets you monitor servers, control Docker, 
 | | homebutler | Glances/btop | Netdata | CasaOS |
 |---|---|---|---|---|
 | TUI dashboard | ✅ Built-in | ✅ | ❌ Web | ❌ Web |
+| Web dashboard | ✅ Embedded | ❌ | ✅ | ✅ |
 | Single binary | ✅ | ❌ | ❌ | ❌ |
-| No web server | ✅ | ❌ | ❌ | ❌ |
+| Optional web server | ✅ On-demand | Always-on | Always-on | Always-on |
 | Multi-server SSH | ✅ Parallel | ❌ | ❌ | ❌ |
 | MCP support | ✅ Built-in | ❌ | ❌ | ❌ |
 | Chat integration | ✅ Native | ❌ | ❌ | ❌ |
@@ -53,9 +55,42 @@ A single-binary CLI + MCP server that lets you monitor servers, control Docker, 
 
 ## Demo
 
+### 🌐 Web Dashboard
+
+<p align="center">
+  <img src="assets/web-dashboard.png" alt="homebutler web dashboard" width="900">
+</p>
+
+> **`homebutler serve`** — A real-time web dashboard embedded in the single binary via `go:embed`. Monitor all your servers, Docker containers, open ports, alerts, and Wake-on-LAN devices from any browser. Dark theme, auto-refresh every 5 seconds, fully responsive.
+
+<details>
+<summary>✨ Web Dashboard Highlights</summary>
+
+- **Server Overview** — See all servers at a glance with color-coded status (green = online, red = offline)
+- **System Metrics** — CPU, memory, disk usage with progress bars and color thresholds
+- **Docker Containers** — Running/stopped status with friendly labels ("Running · 4d", "Stopped · 6h ago")
+- **Top Processes** — Top 10 processes sorted by CPU usage
+- **Resource Alerts** — Threshold-based warnings with visual progress bars (OK / WARNING / CRITICAL)
+- **Network Ports** — Open ports with process names and bind addresses
+- **Wake-on-LAN** — One-click wake buttons for configured devices
+- **Server Switching** — Dropdown to switch between local and remote servers
+- **Zero dependencies** — No Node.js runtime needed. Frontend is compiled into the Go binary at build time
+
+```bash
+homebutler serve              # Start on port 8080
+homebutler serve --port 3000  # Custom port
+homebutler serve --demo       # Demo mode with realistic sample data
+```
+
+</details>
+
+### 🖥️ TUI Dashboard
+
 <p align="center">
   <img src="demo/demo-tui.gif" alt="homebutler TUI dashboard" width="800">
 </p>
+
+> **`homebutler watch`** — A terminal-based dashboard powered by Bubble Tea. Monitors all configured servers with real-time updates, color-coded resource bars, and Docker container status. No browser needed.
 
 ## Quick Start
 
@@ -72,6 +107,7 @@ homebutler init
 # Run
 homebutler status
 homebutler watch             # TUI dashboard (all servers)
+homebutler serve             # Web dashboard at http://localhost:8080
 homebutler docker list
 homebutler wake desktop
 homebutler ports
@@ -87,6 +123,7 @@ Commands:
   init                Interactive setup wizard
   status              System status (CPU, memory, disk, uptime)
   watch               TUI dashboard (monitors all configured servers)
+  serve               Web dashboard (browser-based, go:embed)
   docker list         List running containers
   docker restart <n>  Restart a container
   docker stop <n>     Stop a container
@@ -104,9 +141,39 @@ Flags:
   --json              JSON output (default: human-readable)
   --server <name>     Run on a specific remote server
   --all               Run on all configured servers in parallel
+  --port <number>     Port for serve command (default: 8080)
+  --demo              Run serve with realistic demo data
   --local <path>      Use local binary for deploy (air-gapped)
   --config <path>     Config file (auto-detected, see Configuration)
 ```
+
+## Web Dashboard
+
+`homebutler serve` starts an embedded web dashboard — no Node.js, no Docker, no extra dependencies. The entire Svelte frontend is compiled into the Go binary at build time using `go:embed`.
+
+```bash
+homebutler serve                # http://localhost:8080
+homebutler serve --port 3000    # custom port
+```
+
+Access from another machine via SSH tunnel:
+
+```bash
+ssh -L 8080:localhost:8080 user@your-server
+# Then open http://localhost:8080 in your browser
+```
+
+**Dashboard cards:**
+
+| Card | Description |
+|---|---|
+| **Server Overview** | All servers with live status (green/red dots), CPU, memory, uptime |
+| **System Status** | CPU, memory, disk with color-coded progress bars |
+| **Docker Containers** | Running/stopped with friendly status ("Running · 4d") |
+| **Top Processes** | Top 10 by CPU usage with PID, CPU%, MEM% |
+| **Alerts** | Threshold monitoring with OK / WARNING / CRITICAL |
+| **Network Ports** | Open ports with process names |
+| **Wake-on-LAN** | One-click wake buttons |
 
 ## TUI Dashboard
 

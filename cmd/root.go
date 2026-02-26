@@ -88,6 +88,8 @@ func Execute(version, buildDate string) error {
 		return runTrust(cfg)
 	case "deploy":
 		return runDeploy(cfg)
+	case "serve":
+		return runServe(cfg)
 	case "mcp":
 		return mcp.NewServer(cfg, version).Run()
 	case "version":
@@ -386,6 +388,7 @@ var valueFlags = map[string]bool{
 	"--server": true,
 	"--config": true,
 	"--local":  true,
+	"--port":   true,
 }
 
 func filterFlags(args []string, flags ...string) []string {
@@ -549,6 +552,7 @@ Commands:
   alerts              Check resource thresholds (CPU, memory, disk)
   trust <server>      Trust a remote server's SSH host key
   deploy              Install homebutler on remote servers
+  serve               Web dashboard (default port 8080)
   mcp                 Start MCP server (JSON-RPC over stdio)
   version             Print version
   help                Show this help
@@ -559,6 +563,8 @@ Flags:
   --all               Run on all configured servers in parallel
   --reset             Remove old host key before re-trusting (use with trust)
   --local <path>      Use local binary for deploy (air-gapped)
+  --port <number>     Port for serve command (default: 8080)
+  --demo              Run serve with realistic demo data (no real system calls)
   --config <path>     Config file path (see Configuration below)
 
 Configuration file is resolved in order:

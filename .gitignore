@@ -8,6 +8,10 @@ homebutler
 # Build
 /dist/
 /bin/
+web/dist/
+web/node_modules/
+internal/server/web_dist/*
+!internal/server/web_dist/.gitkeep
 
 # IDE
 .idea/
