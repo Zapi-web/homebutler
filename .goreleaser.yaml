@@ -1,9 +1,5 @@
 version: 2
 
-before:
-  hooks:
-    - cmd: make build-web
-
 builds:
   - main: .
     binary: homebutler
