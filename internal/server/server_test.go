@@ -403,8 +403,8 @@ func TestDemoServersEndpoint(t *testing.T) {
 	if err := json.Unmarshal(w.Body.Bytes(), &result); err != nil {
 		t.Fatalf("invalid JSON: %v", err)
 	}
-	if len(result) != 3 {
-		t.Fatalf("expected 3 demo servers, got %d", len(result))
+	if len(result) != 10 {
+		t.Fatalf("expected 10 demo servers, got %d", len(result))
 	}
 }
 
