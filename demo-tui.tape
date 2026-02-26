@@ -17,29 +17,28 @@ Enter
 Sleep 200ms
 Show
 
-# 1. System status
+# 1. TUI dashboard (hero, first impression)
+Type "homebutler watch"
+Sleep 200ms
+Enter
+Sleep 5s
+
+# 2. Clear and show CLI commands
+Type "clear"
+Enter
+Sleep 300ms
+
 Type "homebutler status"
 Sleep 200ms
 Enter
 Sleep 2500ms
 
-# 2. Docker list
 Type "homebutler docker list"
 Sleep 200ms
 Enter
 Sleep 2500ms
 
-# 3. Alerts
 Type "homebutler alerts"
 Sleep 200ms
 Enter
-Sleep 2500ms
-
-# 4. Clear and show TUI (hero, last)
-Type "clear"
-Enter
-Sleep 300ms
-Type "homebutler watch"
-Sleep 200ms
-Enter
-Sleep 5s
+Sleep 3s
