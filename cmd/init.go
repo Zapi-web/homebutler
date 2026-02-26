@@ -3,10 +3,13 @@ package cmd
 import (
 	"bufio"
 	"fmt"
+	"net"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/Higangssh/homebutler/internal/config"
 	"gopkg.in/yaml.v3"
@@ -15,59 +18,187 @@ import (
 func runInit() error {
 	scanner := bufio.NewScanner(os.Stdin)
 
-	fmt.Println("🏠 HomeButler Setup")
+	fmt.Println()
+	fmt.Println("  🏠 HomeButler Setup")
+	fmt.Println("  ───────────────────")
+	fmt.Println("  💡 Press Enter to accept [default] values")
 	fmt.Println()
 
-	// Determine config path
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return fmt.Errorf("cannot determine home directory: %w", err)
 	}
 	cfgPath := filepath.Join(home, ".config", "homebutler", "config.yaml")
 
-	// Check if config already exists
-	if _, err := os.Stat(cfgPath); err == nil {
-		fmt.Print("Config already exists. Overwrite? (y/n): ")
-		if !scanLine(scanner) {
-			return nil
-		}
-		if !isYes(scanner.Text()) {
-			fmt.Println("Aborted.")
-			return nil
-		}
-	}
-
 	cfg := &config.Config{
 		Alerts: config.AlertConfig{CPU: 90, Memory: 85, Disk: 90},
 		Output: "json",
 	}
 
+	addMode := false // true = keep existing servers, just add new ones
+
+	// Check existing config
+	if _, err := os.Stat(cfgPath); err == nil {
+		fmt.Printf("  📂 Config found: %s\n", cfgPath)
+		fmt.Println()
+
+		existingCfg, loadErr := config.Load(cfgPath)
+		if loadErr == nil && len(existingCfg.Servers) > 0 {
+			fmt.Println("  Current servers:")
+			for _, s := range existingCfg.Servers {
+				if s.Local {
+					fmt.Printf("    • %s (local)\n", s.Name)
+				} else {
+					fmt.Printf("    • %s → %s@%s:%d\n", s.Name, s.SSHUser(), s.Host, s.SSHPort())
+				}
+			}
+			fmt.Println()
+
+			fmt.Println("  What would you like to do?")
+			fmt.Println("    [1] Add servers to existing config (default)")
+			fmt.Println("    [2] Start fresh (overwrite)")
+			fmt.Println("    [3] Cancel")
+			choice := promptDefault(scanner, "  Choice", "1")
+
+			switch choice {
+			case "2":
+				fmt.Println()
+				fmt.Println("  ⚠️  This will DELETE all existing servers:")
+				for _, s := range existingCfg.Servers {
+					if s.Local {
+						fmt.Printf("    • %s (local)\n", s.Name)
+					} else {
+						fmt.Printf("    • %s → %s@%s:%d\n", s.Name, s.SSHUser(), s.Host, s.SSHPort())
+					}
+				}
+				fmt.Println()
+				if !promptYN(scanner, "  Are you sure?", false) {
+					fmt.Println("  Aborted.")
+					return nil
+				}
+				// fresh start, cfg stays empty
+			case "3":
+				fmt.Println("  Aborted.")
+				return nil
+			default:
+				// keep existing
+				cfg = existingCfg
+				addMode = true
+			}
+			fmt.Println()
+		}
+	}
+
+	// Step 1: Local machine (skip if add mode already has one)
+	hasLocal := false
+	for _, s := range cfg.Servers {
+		if s.Local {
+			hasLocal = true
+			break
+		}
+	}
+
+	if !hasLocal {
+		fmt.Println("  📍 Step 1: Local Machine")
+		fmt.Println()
+
+		localName := detectHostname()
+		localIP := detectLocalIP()
+		if localName != "" || localIP != "" {
+			desc := localName
+			if localIP != "" {
+				desc += " (" + localIP + ")"
+			}
+			fmt.Printf("  Detected: %s\n", desc)
+
+			name := promptDefault(scanner, "  Name for this machine", shortHostname(localName))
+			cfg.Servers = append(cfg.Servers, config.ServerConfig{
+				Name:  name,
+				Host:  localIP,
+				Local: true,
+			})
+			fmt.Printf("  ✅ Added local: %s\n", name)
+		} else {
+			fmt.Println("  Could not detect local machine.")
+			if promptYN(scanner, "  Add it manually?", true) {
+				name := promptRequiredInput(scanner, "  Name: ")
+				cfg.Servers = append(cfg.Servers, config.ServerConfig{
+					Name:  name,
+					Host:  "127.0.0.1",
+					Local: true,
+				})
+				fmt.Printf("  ✅ Added local: %s\n", name)
+			}
+		}
+	} else if addMode {
+		fmt.Println("  📍 Local machine already configured, skipping.")
+	}
+
+	// Step 2: Remote servers
+	fmt.Println()
+	fmt.Println("  🌐 Step 2: Remote Servers")
+	if addMode && len(cfg.Servers) > 0 {
+		fmt.Println()
+		fmt.Println("  Existing servers:")
+		for _, s := range cfg.Servers {
+			if s.Local {
+				fmt.Printf("    • %s (local)\n", s.Name)
+			} else {
+				fmt.Printf("    • %s → %s@%s:%d\n", s.Name, s.SSHUser(), s.Host, s.SSHPort())
+			}
+		}
+	}
+	fmt.Println()
+
 	for {
-		server, err := promptServer(scanner)
+		if !promptYN(scanner, "  Add a remote server?", true) {
+			break
+		}
+		fmt.Println()
+
+		server, err := promptRemoteServer(scanner, home)
 		if err != nil {
 			return err
 		}
+
 		cfg.Servers = append(cfg.Servers, *server)
+		fmt.Printf("  ✅ Added remote: %s (%s@%s)\n", server.Name, server.SSHUser(), server.Host)
 
-		fmt.Printf("✅ Added %s (%s)\n", server.Name, server.Host)
-		fmt.Println()
-
-		fmt.Print("Add another server? (y/n): ")
-		if !scanLine(scanner) {
-			break
-		}
-		if !isYes(scanner.Text()) {
-			break
+		// Connection test
+		fmt.Print("  🔌 Testing connection... ")
+		if testSSH(server) {
+			fmt.Println("connected!")
+		} else {
+			fmt.Println("failed (check settings later)")
 		}
 		fmt.Println()
 	}
 
-	// Marshal and save
+	// Step 3: Summary
+	fmt.Println()
+	fmt.Println("  📋 Summary")
+	fmt.Println("  ──────────")
+	for _, s := range cfg.Servers {
+		if s.Local {
+			fmt.Printf("  • %s (local)\n", s.Name)
+		} else {
+			fmt.Printf("  • %s → %s@%s:%d\n", s.Name, s.SSHUser(), s.Host, s.SSHPort())
+		}
+	}
+	fmt.Printf("  • Alerts: CPU %g%% / Memory %g%% / Disk %g%%\n",
+		cfg.Alerts.CPU, cfg.Alerts.Memory, cfg.Alerts.Disk)
+	fmt.Println()
+
+	if !promptYN(scanner, "  Save config?", true) {
+		fmt.Println("  Aborted.")
+		return nil
+	}
+
+	// Save
 	data, err := yaml.Marshal(cfg)
 	if err != nil {
 		return fmt.Errorf("failed to marshal config: %w", err)
 	}
-
 	if err := os.MkdirAll(filepath.Dir(cfgPath), 0o755); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
@@ -76,103 +207,195 @@ func runInit() error {
 	}
 
 	fmt.Println()
-	fmt.Printf("Config saved to %s\n", cfgPath)
-	fmt.Println("Run homebutler status to test!")
+	fmt.Printf("  ✨ Config saved to %s\n", cfgPath)
+	fmt.Println()
+	fmt.Println("  Try it out:")
+	fmt.Println("    homebutler status")
+	fmt.Println("    homebutler tui")
+	fmt.Println()
 	return nil
 }
 
-func promptServer(scanner *bufio.Scanner) (*config.ServerConfig, error) {
+func promptRemoteServer(scanner *bufio.Scanner, home string) (*config.ServerConfig, error) {
 	server := &config.ServerConfig{}
 
-	// Name (required)
-	name, err := promptRequired(scanner, "Server name: ")
-	if err != nil {
-		return nil, err
-	}
-	server.Name = name
+	// Name + Host (required)
+	server.Name = promptRequiredInput(scanner, "  Name: ")
+	server.Host = promptRequiredInput(scanner, "  Host/IP: ")
 
-	// Host (required)
-	host, err := promptRequired(scanner, "Host/IP: ")
-	if err != nil {
-		return nil, err
+	// User — default to current user
+	currentUser := os.Getenv("USER")
+	if currentUser == "" {
+		currentUser = "root"
 	}
-	server.Host = host
+	server.User = promptDefault(scanner, "  SSH user", currentUser)
 
-	// Local?
-	fmt.Print("Is this the local machine? (y/n): ")
-	if !scanLine(scanner) {
-		return nil, fmt.Errorf("unexpected end of input")
-	}
-	if isYes(scanner.Text()) {
-		server.Local = true
-		return server, nil
-	}
-
-	// Remote — SSH details
-	user, err := promptRequired(scanner, "SSH user: ")
-	if err != nil {
-		return nil, err
-	}
-	server.User = user
-
-	fmt.Print("SSH port (22): ")
-	if !scanLine(scanner) {
-		return nil, fmt.Errorf("unexpected end of input")
-	}
-	portStr := strings.TrimSpace(scanner.Text())
-	if portStr != "" {
-		port, err := strconv.Atoi(portStr)
-		if err != nil {
-			return nil, fmt.Errorf("invalid port: %s", portStr)
-		}
+	// Port
+	portStr := promptDefault(scanner, "  SSH port", "22")
+	if port, err := strconv.Atoi(portStr); err == nil && port != 22 {
 		server.Port = port
 	}
 
-	fmt.Print("Auth method (key/password): ")
-	if !scanLine(scanner) {
-		return nil, fmt.Errorf("unexpected end of input")
+	// Auth method
+	keyFile := detectSSHKey(home)
+	defaultAuth := "key"
+	if keyFile == "" {
+		defaultAuth = "password"
 	}
-	authMethod := strings.TrimSpace(strings.ToLower(scanner.Text()))
-	if authMethod == "password" {
+	authChoice := promptDefault(scanner, "  Auth method (key/password)", defaultAuth)
+
+	if strings.ToLower(authChoice) == "password" {
 		server.AuthMode = "password"
-		password, err := promptRequired(scanner, "Password: ")
-		if err != nil {
-			return nil, err
-		}
-		server.Password = password
+		server.Password = promptRequiredInput(scanner, "  Password: ")
 	} else {
-		fmt.Print("Key file (~/.ssh/id_rsa): ")
-		if !scanLine(scanner) {
-			return nil, fmt.Errorf("unexpected end of input")
+		defaultKey := shortPath(keyFile, home)
+		if defaultKey == "" {
+			defaultKey = "~/.ssh/id_rsa"
 		}
-		keyFile := strings.TrimSpace(scanner.Text())
-		if keyFile == "" {
-			keyFile = "~/.ssh/id_rsa"
-		}
-		server.KeyFile = keyFile
+		server.KeyFile = promptDefault(scanner, "  Key file", defaultKey)
 	}
 
 	return server, nil
 }
 
-func promptRequired(scanner *bufio.Scanner, prompt string) (string, error) {
+// promptDefault shows a prompt with a default value in brackets.
+// Empty input accepts the default.
+func promptDefault(scanner *bufio.Scanner, prompt, def string) string {
+	fmt.Printf("%s [%s]: ", prompt, def)
+	if !scanner.Scan() {
+		return def
+	}
+	val := strings.TrimSpace(scanner.Text())
+	if val == "" {
+		return def
+	}
+	return val
+}
+
+// promptRequiredInput loops until non-empty input is given.
+func promptRequiredInput(scanner *bufio.Scanner, prompt string) string {
 	for {
 		fmt.Print(prompt)
-		if !scanLine(scanner) {
-			return "", fmt.Errorf("unexpected end of input")
+		if !scanner.Scan() {
+			continue
 		}
 		val := strings.TrimSpace(scanner.Text())
 		if val != "" {
-			return val, nil
+			return val
 		}
-		fmt.Println("  This field is required.")
 	}
 }
 
-func scanLine(scanner *bufio.Scanner) bool {
-	return scanner.Scan()
+// promptYN asks a yes/no question. Default determines what Enter does.
+func promptYN(scanner *bufio.Scanner, prompt string, def bool) bool {
+	hint := "Y/n"
+	if !def {
+		hint = "y/N"
+	}
+	fmt.Printf("%s [%s]: ", prompt, hint)
+	if !scanner.Scan() {
+		return def
+	}
+	val := strings.TrimSpace(strings.ToLower(scanner.Text()))
+	if val == "" {
+		return def
+	}
+	return val == "y" || val == "yes"
 }
 
-func isYes(s string) bool {
-	return strings.TrimSpace(strings.ToLower(s)) == "y"
+// detectHostname returns the system hostname.
+func detectHostname() string {
+	name, err := os.Hostname()
+	if err != nil {
+		return ""
+	}
+	return name
+}
+
+// shortHostname strips domain parts: "my-mac.local" → "my-mac"
+func shortHostname(name string) string {
+	if i := strings.Index(name, "."); i > 0 {
+		return name[:i]
+	}
+	if name == "" {
+		return "localhost"
+	}
+	return name
+}
+
+// detectLocalIP finds the primary LAN IP (non-loopback).
+func detectLocalIP() string {
+	conn, err := net.DialTimeout("udp", "8.8.8.8:80", 2*time.Second)
+	if err != nil {
+		return "127.0.0.1"
+	}
+	defer conn.Close()
+	addr := conn.LocalAddr().(*net.UDPAddr)
+	return addr.IP.String()
+}
+
+// detectSSHKey finds the first existing SSH private key.
+func detectSSHKey(home string) string {
+	candidates := []string{
+		filepath.Join(home, ".ssh", "id_ed25519"),
+		filepath.Join(home, ".ssh", "id_rsa"),
+		filepath.Join(home, ".ssh", "id_ecdsa"),
+	}
+	for _, k := range candidates {
+		if _, err := os.Stat(k); err == nil {
+			return k
+		}
+	}
+	return ""
+}
+
+// shortPath replaces home dir prefix with ~
+func shortPath(path, home string) string {
+	if strings.HasPrefix(path, home) {
+		return "~" + path[len(home):]
+	}
+	return path
+}
+
+// testSSH tries a quick SSH connection to verify settings.
+func testSSH(server *config.ServerConfig) bool {
+	port := server.SSHPort()
+	addr := net.JoinHostPort(server.Host, strconv.Itoa(port))
+
+	conn, err := net.DialTimeout("tcp", addr, 3*time.Second)
+	if err != nil {
+		return false
+	}
+	conn.Close()
+	return true
+}
+
+// detectSSHAgent checks if SSH agent is available.
+func detectSSHAgent() bool {
+	return os.Getenv("SSH_AUTH_SOCK") != ""
+}
+
+// sshConfigHosts reads ~/.ssh/config and returns host entries (for future use).
+func sshConfigHosts(home string) []string {
+	data, err := os.ReadFile(filepath.Join(home, ".ssh", "config"))
+	if err != nil {
+		return nil
+	}
+	var hosts []string
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(strings.ToLower(line), "host ") {
+			host := strings.TrimSpace(line[5:])
+			if host != "*" && !strings.Contains(host, "*") {
+				hosts = append(hosts, host)
+			}
+		}
+	}
+	return hosts
+}
+
+// isCommandAvailable checks if a command exists in PATH.
+func isCommandAvailable(name string) bool {
+	_, err := exec.LookPath(name)
+	return err == nil
 }

@@ -66,6 +66,9 @@ curl -fsSL https://raw.githubusercontent.com/Higangssh/homebutler/main/install.s
 # Or via Homebrew
 brew install Higangssh/homebutler/homebutler
 
+# Interactive setup — adds your servers in seconds
+homebutler init
+
 # Run
 homebutler status
 homebutler watch             # TUI dashboard (all servers)
@@ -81,6 +84,7 @@ homebutler status --all
 homebutler <command> [flags]
 
 Commands:
+  init                Interactive setup wizard
   status              System status (CPU, memory, disk, uptime)
   watch               TUI dashboard (monitors all configured servers)
   docker list         List running containers
@@ -91,6 +95,7 @@ Commands:
   ports               List open ports with process info
   network scan        Discover devices on LAN
   alerts              Show current alert status
+  trust <server>      Register SSH host key (TOFU)
   deploy              Install homebutler on remote servers
   mcp                 Start MCP server (JSON-RPC over stdio)
   version             Print version
@@ -120,6 +125,24 @@ homebutler watch               # monitors all configured servers
 Auto-refreshes every 2 seconds. Press `q` to quit.
 
 ## Configuration
+
+### Interactive Setup
+
+The easiest way to get started:
+
+```bash
+homebutler init
+```
+
+The setup wizard will:
+- Auto-detect your local machine (hostname, IP)
+- Walk you through adding remote servers (SSH user, port, auth)
+- Test SSH connectivity for each server
+- Show a summary before saving
+
+If you already have a config, `homebutler init` lets you **add servers** to your existing config or start fresh.
+
+### Config File
 
 homebutler searches for a config file in the following order:
 
