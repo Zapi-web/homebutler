@@ -20,9 +20,7 @@ func TestLoadDefaults(t *testing.T) {
 	if cfg.Alerts.Disk != 90 {
 		t.Errorf("expected Disk threshold 90, got %f", cfg.Alerts.Disk)
 	}
-	if cfg.Output != "json" {
-		t.Errorf("expected output 'json', got %q", cfg.Output)
-	}
+
 }
 
 func TestLoadFromFile(t *testing.T) {
@@ -38,7 +36,6 @@ wake:
   - name: nas
     mac: "AA:BB:CC:DD:EE:FF"
     ip: "192.168.1.255"
-output: json
 `
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 		t.Fatalf("failed to write test config: %v", err)
