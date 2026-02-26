@@ -10,6 +10,7 @@ import (
 
 	"github.com/Higangssh/homebutler/internal/config"
 	"github.com/Higangssh/homebutler/internal/docker"
+	"github.com/Higangssh/homebutler/internal/system"
 )
 
 const refreshInterval = 2 * time.Second
@@ -98,11 +99,15 @@ func (m Model) calcWidths() panelWidths {
 func NewModel(cfg *config.Config, serverNames []string) Model {
 	var tabs []serverTab
 
+	// Initialize with empty StatusInfo so the UI renders immediately
+	// (CPU/Mem show 0% until first real fetch completes)
+	emptyStatus := &system.StatusInfo{}
+
 	if len(serverNames) == 0 {
 		for i := range cfg.Servers {
 			tabs = append(tabs, serverTab{
 				config: &cfg.Servers[i],
-				data:   ServerData{Name: cfg.Servers[i].Name},
+				data:   ServerData{Name: cfg.Servers[i].Name, Status: emptyStatus},
 			})
 		}
 	} else {
@@ -110,7 +115,7 @@ func NewModel(cfg *config.Config, serverNames []string) Model {
 			if srv := cfg.FindServer(name); srv != nil {
 				tabs = append(tabs, serverTab{
 					config: srv,
-					data:   ServerData{Name: srv.Name},
+					data:   ServerData{Name: srv.Name, Status: emptyStatus},
 				})
 			}
 		}
