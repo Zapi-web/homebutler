@@ -68,7 +68,8 @@ This is what homebutler + [OpenClaw](https://github.com/openclaw/openclaw) looks
 ### 🤖 AI-Powered Management (MCP)
 
 <p align="center">
-  <img src="assets/mcp-tool-calls.jpg" alt="Claude Code + homebutler MCP" width="800" />
+  <img src="assets/mcp-tool-calls.jpg" alt="Claude Code calling homebutler MCP tools" width="49%" />
+  <img src="assets/mcp-results.jpg" alt="homebutler MCP results" width="49%" />
 </p>
 
 > **One natural language prompt manages your entire homelab.** Claude Code calls homebutler MCP tools in parallel — checking server status, listing Docker containers, and alerting on disk usage across multiple servers. [See MCP setup →](#mcp-server)
@@ -363,19 +364,12 @@ homebutler includes a built-in [MCP (Model Context Protocol)](https://modelconte
 > One prompt. Multiple servers. Full visibility.
 
 <p align="center">
-  <img src="assets/mcp-tool-calls.jpg" alt="Claude Code calling homebutler MCP tools" width="700" />
+  <img src="assets/mcp-tool-calls.jpg" alt="Claude Code calling homebutler MCP tools" width="49%" />
+  <img src="assets/mcp-results.jpg" alt="homebutler MCP results" width="49%" />
 </p>
 
 <p align="center">
-  <em>Claude Code automatically calls homebutler tools in parallel across servers</em>
-</p>
-
-<p align="center">
-  <img src="assets/mcp-results.jpg" alt="homebutler MCP results" width="700" />
-</p>
-
-<p align="center">
-  <em>Formatted results: server status, Docker containers, disk alerts — all from one prompt</em>
+  <em>Left: Claude Code calls homebutler tools in parallel · Right: Formatted results with disk alerts</em>
 </p>
 
 ### Try Without Real Servers
