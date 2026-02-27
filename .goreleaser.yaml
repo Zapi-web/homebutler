@@ -23,8 +23,23 @@ checksum:
 
 changelog:
   sort: asc
+  use: github
+  groups:
+    - title: "🚀 Features"
+      regexp: '^.*?feat(\(.+\))??!?:.+$'
+      order: 0
+    - title: "🐛 Bug Fixes"
+      regexp: '^.*?fix(\(.+\))??!?:.+$'
+      order: 1
+    - title: "🔒 Security"
+      regexp: '^.*?security(\(.+\))??!?:.+$'
+      order: 2
+    - title: "📦 Others"
+      order: 999
   filters:
     exclude:
       - "^docs:"
       - "^chore:"
       - "^test:"
+      - "^style:"
+      - "^ci:"
