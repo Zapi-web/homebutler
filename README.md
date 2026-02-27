@@ -403,7 +403,7 @@ No network ports opened. MCP uses stdio (stdin/stdout) — only the parent AI pr
 
 ### OpenClaw Skill
 
-An official [OpenClaw](https://github.com/openclaw/openclaw) skill is available on [ClawHub](https://clawhub.ai/skills/homeserver):
+An official [OpenClaw](https://github.com/openclaw/openclaw) skill is available on [ClawHub](https://clawhub.ai/Higangssh/homeserver):
 
 ```bash
 clawhub install homeserver
