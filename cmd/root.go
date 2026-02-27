@@ -49,12 +49,13 @@ func Execute(version, buildDate string) error {
 		return tui.Run(cfg, nil)
 	}
 
-	// Multi-server: route to remote execution (skip for deploy — it handles remoting itself)
+	// Multi-server: route to remote execution (skip for deploy/upgrade — they handle remoting themselves)
 	isDeployCmd := len(os.Args) >= 2 && os.Args[1] == "deploy"
-	if allServers && !isDeployCmd {
+	isUpgradeCmd := len(os.Args) >= 2 && os.Args[1] == "upgrade"
+	if allServers && !isDeployCmd && !isUpgradeCmd {
 		return runAllServers(cfg, os.Args[1:], jsonOutput)
 	}
-	if serverName != "" && !isDeployCmd {
+	if serverName != "" && !isDeployCmd && !isUpgradeCmd {
 		server := cfg.FindServer(serverName)
 		if server == nil {
 			return fmt.Errorf("server %q not found in config. Available servers: %s", serverName, listServerNames(cfg))
@@ -90,6 +91,8 @@ func Execute(version, buildDate string) error {
 		return runTrust(cfg)
 	case "deploy":
 		return runDeploy(cfg)
+	case "upgrade":
+		return runUpgrade(cfg, version)
 	case "serve":
 		return runServe(cfg)
 	case "mcp":
@@ -485,6 +488,90 @@ func runDeploy(cfg *config.Config) error {
 	return output(results, true)
 }
 
+func runUpgrade(cfg *config.Config, currentVersion string) error {
+	localOnly := hasFlag("--local")
+	jsonOutput := hasFlag("--json")
+
+	// Fetch latest version
+	fmt.Fprintf(os.Stderr, "checking latest version... ")
+	latestVersion, err := remote.FetchLatestVersion()
+	if err != nil {
+		return fmt.Errorf("cannot check latest version: %w", err)
+	}
+	fmt.Fprintf(os.Stderr, "v%s\n\n", latestVersion)
+
+	var report remote.UpgradeReport
+	report.LatestVersion = latestVersion
+
+	// 1. Self-upgrade
+	fmt.Fprintf(os.Stderr, "upgrading local... ")
+	localResult := remote.SelfUpgrade(currentVersion, latestVersion)
+	report.Results = append(report.Results, *localResult)
+	printUpgradeStatus(localResult)
+
+	// 2. Remote servers (unless --local)
+	if !localOnly {
+		for _, srv := range cfg.Servers {
+			if srv.Local {
+				continue
+			}
+			fmt.Fprintf(os.Stderr, "upgrading %s... ", srv.Name)
+			result := remote.RemoteUpgrade(&srv, latestVersion)
+			report.Results = append(report.Results, *result)
+			printUpgradeStatus(result)
+		}
+	}
+
+	// Summary
+	upgraded, upToDate, failed := 0, 0, 0
+	for _, r := range report.Results {
+		switch r.Status {
+		case "upgraded":
+			upgraded++
+		case "up-to-date":
+			upToDate++
+		case "error":
+			failed++
+		}
+	}
+	fmt.Fprintf(os.Stderr, "\n")
+	if upgraded > 0 {
+		fmt.Fprintf(os.Stderr, "%d upgraded", upgraded)
+	}
+	if upToDate > 0 {
+		if upgraded > 0 {
+			fmt.Fprintf(os.Stderr, ", ")
+		}
+		fmt.Fprintf(os.Stderr, "%d already up-to-date", upToDate)
+	}
+	if failed > 0 {
+		if upgraded > 0 || upToDate > 0 {
+			fmt.Fprintf(os.Stderr, ", ")
+		}
+		fmt.Fprintf(os.Stderr, "%d failed", failed)
+	}
+	fmt.Fprintf(os.Stderr, "\n")
+
+	if jsonOutput {
+		enc := json.NewEncoder(os.Stdout)
+		enc.SetIndent("", "  ")
+		return enc.Encode(report)
+	}
+
+	return nil
+}
+
+func printUpgradeStatus(r *remote.UpgradeResult) {
+	switch r.Status {
+	case "upgraded":
+		fmt.Fprintf(os.Stderr, "✓ %s\n", r.Message)
+	case "up-to-date":
+		fmt.Fprintf(os.Stderr, "─ %s\n", r.Message)
+	case "error":
+		fmt.Fprintf(os.Stderr, "✗ %s\n", r.Message)
+	}
+}
+
 func output(data any, jsonOut bool) error {
 	if jsonOut {
 		enc := json.NewEncoder(os.Stdout)
@@ -560,6 +647,7 @@ Commands:
   network scan        Discover devices on local network
   alerts              Check resource thresholds (CPU, memory, disk)
   trust <server>      Trust a remote server's SSH host key
+  upgrade             Upgrade local + all remote servers to latest
   deploy              Install homebutler on remote servers
   serve               Web dashboard (default port 8080)
   mcp                 Start MCP server (JSON-RPC over stdio)
@@ -571,6 +659,7 @@ Flags:
   --server <name>     Run on a specific remote server
   --all               Run on all configured servers in parallel
   --reset             Remove old host key before re-trusting (use with trust)
+  --local             Upgrade only the local binary (skip remote servers)
   --local <path>      Use local binary for deploy (air-gapped)
   --port <number>     Port for serve command (default: 8080)
   --demo              Run serve with realistic demo data (no real system calls)

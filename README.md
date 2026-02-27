@@ -150,6 +150,7 @@ Commands:
   network scan        Discover devices on LAN
   alerts              Show current alert status
   trust <server>      Register SSH host key (TOFU)
+  upgrade             Upgrade local + all remote servers to latest
   deploy              Install homebutler on remote servers
   mcp                 Start MCP server (JSON-RPC over stdio)
   version             Print version
@@ -160,6 +161,7 @@ Flags:
   --all               Run on all configured servers in parallel
   --port <number>     Port for serve command (default: 8080)
   --demo              Run serve with realistic demo data
+  --local             Upgrade only the local binary (skip remote servers)
   --local <path>      Use local binary for deploy (air-gapped)
   --config <path>     Config file (auto-detected, see Configuration)
 ```
@@ -316,9 +318,28 @@ homebutler docker list --server rpi
 homebutler status --all
 homebutler alerts --all
 
-# Deploy/update homebutler on remote servers
+# Deploy homebutler to remote servers (first install)
 homebutler deploy --server rpi
 homebutler deploy --all
+
+# Upgrade local + all remote servers to latest
+homebutler upgrade
+
+# Upgrade only the local binary
+homebutler upgrade --local
+```
+
+Upgrade checks GitHub Releases for the latest version, compares with each target, and updates only what's outdated:
+
+```
+$ homebutler upgrade
+checking latest version... v0.8.0
+
+upgrading local... ✓ v0.7.1 → v0.8.0
+upgrading rpi5...  ✓ v0.7.1 → v0.8.0 (linux/arm64)
+upgrading nas...   ─ already v0.8.0
+
+2 upgraded, 1 already up-to-date
 ```
 
 ## Output Format

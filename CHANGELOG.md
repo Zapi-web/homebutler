@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [v0.8.0] - 2026-02-28
+
+### Added
+- `upgrade` command — update local + all remote servers to latest in one command
+- `--local` flag for upgrade to skip remote servers
+- npm package unified to `homebutler` (previously `homebutler-mcp`, now deprecated)
+- npm install path added to README and Quick Start
+
+### Changed
+- `install.js` rewritten: native HTTPS (no curl dependency), graceful postinstall failure with lazy install fallback
+- MCP config example updated to `npx -y homebutler@latest`
+
 ## [v0.7.1] - 2026-02-27
 
 ### Added
