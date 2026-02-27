@@ -31,6 +31,16 @@ A single-binary CLI + MCP server that lets you monitor servers, control Docker, 
 
 > Other tools give you dashboards. homebutler gives you a **conversation**.
 
+**3 AM. Your server disk is 91% full. Here's what happens next:**
+
+<p align="center">
+  <img src="assets/demo-chat.png" alt="HomeButler alert → diagnose → fix via Telegram" width="480" />
+</p>
+
+Alert fires → you check logs from bed → AI restarts the problem container → disk drops to 66%. All from your phone. No SSH, no laptop, no dashboard login.
+
+This is what homebutler + [OpenClaw](https://github.com/openclaw/openclaw) looks like in practice.
+
 <details>
 <summary>📊 Comparison with alternatives</summary>
 
