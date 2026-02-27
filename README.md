@@ -115,6 +115,9 @@ curl -fsSL https://raw.githubusercontent.com/Higangssh/homebutler/main/install.s
 # Or via Homebrew
 brew install Higangssh/homebutler/homebutler
 
+# Or via npm (MCP server only)
+npm install -g homebutler
+
 # Interactive setup — adds your servers in seconds
 homebutler init
 
@@ -402,7 +405,7 @@ Add to your MCP client config:
   "mcpServers": {
     "homebutler": {
       "command": "npx",
-      "args": ["-y", "homebutler-mcp"]
+      "args": ["-y", "homebutler@latest"]
     }
   }
 }
@@ -489,6 +492,14 @@ curl -fsSL https://raw.githubusercontent.com/Higangssh/homebutler/main/install.s
 ```
 
 Auto-detects OS/architecture, downloads the latest release, and installs to PATH.
+
+### npm (MCP server)
+
+```bash
+npm install -g homebutler
+```
+
+Downloads the Go binary automatically. Use `npx -y homebutler@latest` to run without installing globally.
 
 ### Go Install
 

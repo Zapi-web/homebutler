@@ -30,25 +30,39 @@ function getPlatform() {
   return { os, cpu };
 }
 
-function getVersion() {
-  // Try to get latest release tag from GitHub API
+function fetchJSON(url) {
+  return new Promise((resolve, reject) => {
+    const req = https.get(url, { headers: { "User-Agent": "homebutler-mcp" }, timeout: 10000 }, (res) => {
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+        return fetchJSON(res.headers.location).then(resolve, reject);
+      }
+      if (res.statusCode !== 200) {
+        return reject(new Error(`HTTP ${res.statusCode}`));
+      }
+      let data = "";
+      res.on("data", (c) => (data += c));
+      res.on("end", () => {
+        try { resolve(JSON.parse(data)); } catch (e) { reject(e); }
+      });
+    });
+    req.on("error", reject);
+    req.on("timeout", () => { req.destroy(); reject(new Error("timeout")); });
+  });
+}
+
+async function getVersion() {
   try {
-    const { execSync } = require("child_process");
-    const out = execSync(
-      'curl -sL -H "Accept: application/vnd.github.v3+json" https://api.github.com/repos/Higangssh/homebutler/releases/latest',
-      { encoding: "utf8", timeout: 10000 }
+    const data = await fetchJSON(
+      `https://api.github.com/repos/${REPO}/releases/latest`
     );
-    const data = JSON.parse(out);
     if (data.tag_name) return data.tag_name.replace(/^v/, "");
   } catch {}
-  // Fallback to package.json version
-  const pkg = require("./package.json");
-  return pkg.version;
+  return require("./package.json").version;
 }
 
 function fetch(url) {
   return new Promise((resolve, reject) => {
-    https.get(url, { headers: { "User-Agent": "homebutler-mcp" } }, (res) => {
+    const req = https.get(url, { headers: { "User-Agent": "homebutler-mcp" }, timeout: 60000 }, (res) => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         return fetch(res.headers.location).then(resolve, reject);
       }
@@ -56,20 +70,22 @@ function fetch(url) {
         return reject(new Error(`HTTP ${res.statusCode} for ${url}`));
       }
       resolve(res);
-    }).on("error", reject);
+    });
+    req.on("error", reject);
+    req.on("timeout", () => { req.destroy(); reject(new Error("download timeout")); });
   });
 }
 
 async function downloadAndExtract() {
   const { os, cpu } = getPlatform();
-  const version = getVersion();
+  const version = await getVersion();
   const tag = `v${version}`;
 
   const ext = os === "windows" ? "zip" : "tar.gz";
   const assetName = `homebutler_${version}_${os}_${cpu}.${ext}`;
   const url = `https://github.com/${REPO}/releases/download/${tag}/${assetName}`;
 
-  console.log(`Downloading homebutler ${tag} for ${os}/${cpu}...`);
+  process.stderr.write(`Downloading homebutler ${tag} for ${os}/${cpu}...\n`);
 
   fs.mkdirSync(BIN_DIR, { recursive: true });
 
@@ -78,17 +94,14 @@ async function downloadAndExtract() {
   const res = await fetch(url);
   await pipeline(res, stream);
 
-  console.log("Extracting...");
-
   if (ext === "tar.gz") {
-    execSync(`tar -xzf "${tmpFile}" -C "${BIN_DIR}"`, { stdio: "inherit" });
+    execSync(`tar -xzf "${tmpFile}" -C "${BIN_DIR}"`, { stdio: "pipe" });
   } else {
-    execSync(`unzip -o "${tmpFile}" -d "${BIN_DIR}"`, { stdio: "inherit" });
+    execSync(`unzip -o "${tmpFile}" -d "${BIN_DIR}"`, { stdio: "pipe" });
   }
 
   // Find the binary (goreleaser puts it inside a directory or at root)
   if (!fs.existsSync(BIN_PATH)) {
-    // Search recursively
     const found = findFile(BIN_DIR, BIN_NAME);
     if (found && found !== BIN_PATH) {
       fs.renameSync(found, BIN_PATH);
@@ -101,10 +114,8 @@ async function downloadAndExtract() {
 
   fs.chmodSync(BIN_PATH, 0o755);
 
-  // Cleanup archive
+  // Cleanup
   fs.unlinkSync(tmpFile);
-
-  // Cleanup extracted directories
   for (const entry of fs.readdirSync(BIN_DIR)) {
     const full = path.join(BIN_DIR, entry);
     if (fs.statSync(full).isDirectory()) {
@@ -112,7 +123,7 @@ async function downloadAndExtract() {
     }
   }
 
-  console.log(`homebutler ${tag} installed successfully.`);
+  process.stderr.write(`homebutler ${tag} installed successfully.\n`);
 }
 
 function findFile(dir, name) {
@@ -127,18 +138,29 @@ function findFile(dir, name) {
   return null;
 }
 
-// Skip if binary already exists and is correct version
-if (fs.existsSync(BIN_PATH)) {
-  try {
-    const out = execSync(`"${BIN_PATH}" version`, { encoding: "utf8" });
-    if (out.includes(getVersion())) {
-      console.log(`homebutler ${getVersion()} already installed.`);
-      process.exit(0);
-    }
-  } catch {}
+async function main() {
+  // Skip if binary already exists and is correct version
+  if (fs.existsSync(BIN_PATH)) {
+    try {
+      const version = await getVersion();
+      const out = execSync(`"${BIN_PATH}" version`, { encoding: "utf8" });
+      if (out.includes(version)) {
+        process.stderr.write(`homebutler ${version} already installed.\n`);
+        process.exit(0);
+      }
+    } catch {}
+  }
+
+  await downloadAndExtract();
 }
 
-downloadAndExtract().catch((err) => {
-  console.error("Failed to install homebutler:", err.message);
+main().catch((err) => {
+  process.stderr.write(`Failed to install homebutler: ${err.message}\n`);
+  // Don't exit(1) during postinstall — let run.js handle lazy install
+  // This prevents npm install -g from failing if download is slow
+  if (process.env.npm_lifecycle_event === "postinstall") {
+    process.stderr.write("Binary will be downloaded on first run.\n");
+    process.exit(0);
+  }
   process.exit(1);
 });

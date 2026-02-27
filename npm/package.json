@@ -1,7 +1,7 @@
 {
-  "name": "homebutler-mcp",
-  "version": "0.7.3",
-  "description": "MCP server for homelab management — manage servers, Docker, ports, alerts via AI",
+  "name": "homebutler",
+  "version": "0.0.0",
+  "description": "Homelab management CLI + MCP server — manage servers, Docker, ports, alerts via AI",
   "keywords": [
     "mcp",
     "homelab",
@@ -18,7 +18,7 @@
     "type": "git",
     "url": "https://github.com/Higangssh/homebutler"
   },
-  "homepage": "https://github.com/Higangssh/homebutler#mcp-server",
+  "homepage": "https://github.com/Higangssh/homebutler",
   "bugs": {
     "url": "https://github.com/Higangssh/homebutler/issues"
   },

@@ -35,6 +35,10 @@ PROJECT.md
 demo.sh
 demo.cast
 demo.tape
+demo-mcp.tape
+*.tgz
+.mcp.json
+npm/bin/
 homebutler-linux-arm64
 homebutler
 demo-chat.sh
